@@ -22,7 +22,7 @@ services:
   # Worker Service - Core claude-mem API
   # ---------------------------------------------------------------------------
   worker:
-    image: ${CLAUDE_MEM_IMAGE:-ghcr.io/sebastienvg/mem-claude:latest}
+    image: ${CLAUDE_MEM_IMAGE:-registry.evthings.space/mem-claude/claude-mem:latest}
     container_name: claude-mem-worker
     ports:
       - "${CLAUDE_MEM_WORKER_PORT:-37777}:37777"
