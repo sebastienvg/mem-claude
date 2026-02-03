@@ -1,26 +1,58 @@
+# =============================================================================
+# Claude-Mem Docker Compose
+# =============================================================================
+#
+# QUICK START:
+#   1. Copy .env.example to .env
+#   2. Choose your AI provider (Ollama recommended for self-hosted)
+#   3. Run: docker compose up -d
+#
+# PROFILES:
+#   docker compose up -d                  # Default: worker + chroma (use external Ollama)
+#   docker compose --profile ollama up -d # Include local Ollama container
+#   docker compose --profile gpu up -d    # Ollama with GPU acceleration
+#
+# =============================================================================
+
 services:
+  # ---------------------------------------------------------------------------
+  # Worker Service - Core claude-mem API
+  # ---------------------------------------------------------------------------
   worker:
     build:
       context: .
       dockerfile: Dockerfile
+    image: ${CLAUDE_MEM_IMAGE:-claude-mem:latest}
     container_name: claude-mem-worker
     ports:
       - "${CLAUDE_MEM_WORKER_PORT:-37777}:37777"
     volumes:
       - claude-mem-data:/data
     environment:
+      # Core settings
       - CLAUDE_MEM_DATA_DIR=/data
       - CLAUDE_MEM_WORKER_HOST=0.0.0.0
       - CLAUDE_MEM_WORKER_PORT=37777
+      - CLAUDE_MEM_LOG_LEVEL=${CLAUDE_MEM_LOG_LEVEL:-INFO}
+      # Chroma vector database
       - CLAUDE_MEM_CHROMA_MODE=http
       - CLAUDE_MEM_CHROMA_URL=http://chroma:8000
-      - CLAUDE_MEM_MODEL=${CLAUDE_MEM_MODEL:-claude-sonnet-4-5}
-      - CLAUDE_MEM_PROVIDER=${CLAUDE_MEM_PROVIDER:-claude}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - CLAUDE_MEM_GEMINI_API_KEY=${CLAUDE_MEM_GEMINI_API_KEY:-}
-      - CLAUDE_MEM_OPENROUTER_API_KEY=${CLAUDE_MEM_OPENROUTER_API_KEY:-}
+      # AI Provider (see .env.example for options)
+      - CLAUDE_MEM_PROVIDER=${CLAUDE_MEM_PROVIDER:-ollama}
+      - CLAUDE_MEM_MODEL=${CLAUDE_MEM_MODEL:-}
+      # Ollama (local, recommended)
       - CLAUDE_MEM_OLLAMA_URL=${CLAUDE_MEM_OLLAMA_URL:-http://ollama:11434}
-      - CLAUDE_MEM_OLLAMA_MODEL=${CLAUDE_MEM_OLLAMA_MODEL:-llama3.2}
+      - CLAUDE_MEM_OLLAMA_MODEL=${CLAUDE_MEM_OLLAMA_MODEL:-llama3.2:3b}
+      - CLAUDE_MEM_OLLAMA_MAX_CONTEXT_MESSAGES=${CLAUDE_MEM_OLLAMA_MAX_CONTEXT_MESSAGES:-20}
+      - CLAUDE_MEM_OLLAMA_MAX_TOKENS=${CLAUDE_MEM_OLLAMA_MAX_TOKENS:-100000}
+      # OpenRouter (remote, free tier available)
+      - CLAUDE_MEM_OPENROUTER_API_KEY=${CLAUDE_MEM_OPENROUTER_API_KEY:-}
+      - CLAUDE_MEM_OPENROUTER_MODEL=${CLAUDE_MEM_OPENROUTER_MODEL:-}
+      # Gemini
+      - CLAUDE_MEM_GEMINI_API_KEY=${CLAUDE_MEM_GEMINI_API_KEY:-}
+      - CLAUDE_MEM_GEMINI_MODEL=${CLAUDE_MEM_GEMINI_MODEL:-}
+      # Claude (Anthropic)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
     depends_on:
       chroma:
         condition: service_started
@@ -29,11 +61,14 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 15s
     restart: unless-stopped
 
+  # ---------------------------------------------------------------------------
+  # Chroma - Vector database for semantic search
+  # ---------------------------------------------------------------------------
   chroma:
-    image: chromadb/chroma:latest
+    image: chromadb/chroma:0.5.23
     container_name: claude-mem-chroma
     volumes:
       - chroma-data:/chroma/chroma
@@ -41,35 +76,60 @@ services:
       - ANONYMIZED_TELEMETRY=False
       - CHROMA_SERVER_AUTHN_PROVIDER=
       - CHROMA_SERVER_AUTHN_CREDENTIALS=
-    # Note: Chroma image has minimal tooling, skip health check
-    # Worker will retry connection if Chroma isn't ready
     restart: unless-stopped
 
-  # Optional: Local Ollama for self-hosted AI (no API costs)
-  # Uncomment to use Ollama instead of cloud providers
-  # ollama:
-  #   image: ollama/ollama:latest
-  #   container_name: claude-mem-ollama
-  #   ports:
-  #     - "11434:11434"
-  #   volumes:
-  #     - ollama-data:/root/.ollama
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
-  #     start_period: 30s
-  #   restart: unless-stopped
-  #   # Pull a model on first run: docker exec claude-mem-ollama ollama pull llama3.2
+  # ---------------------------------------------------------------------------
+  # Ollama - Local AI (optional, use profile: ollama or gpu)
+  # ---------------------------------------------------------------------------
+  ollama:
+    image: ollama/ollama:latest
+    container_name: claude-mem-ollama
+    profiles: ["ollama", "gpu"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Ollama with GPU - NVIDIA GPU acceleration
+  # ---------------------------------------------------------------------------
+  ollama-gpu:
+    image: ollama/ollama:latest
+    container_name: claude-mem-ollama
+    profiles: ["gpu"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
 
 volumes:
   claude-mem-data:
     name: claude-mem-data
   chroma-data:
     name: claude-mem-chroma-data
-  # ollama-data:
-  #   name: claude-mem-ollama-data
+  ollama-data:
+    name: claude-mem-ollama-data
 
 networks:
   default:
