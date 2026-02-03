@@ -12,11 +12,23 @@ cp .env.example .env
 
 # Edit .env to choose your AI provider
 
-# Start with local Ollama (recommended)
+# Start with local Ollama (recommended) - pulls pre-built images
 docker compose --profile ollama up -d
 
 # Pull a compression model
 docker exec claude-mem-ollama ollama pull llama3.2:3b
+```
+
+## Pre-built vs Build from Source
+
+**Default: Pull pre-built images** (fastest)
+```bash
+docker compose up -d                    # Pulls from ghcr.io
+```
+
+**Build from source** (for development)
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
 ## Architecture

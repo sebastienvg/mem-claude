@@ -31,7 +31,7 @@ cp .env.example .env
 
 # Choose your AI provider in .env (see options below)
 
-# Start with local Ollama (recommended - fully self-hosted)
+# Start with local Ollama (recommended) - pulls pre-built images
 docker compose --profile ollama up -d
 
 # Pull the compression model
@@ -39,6 +39,8 @@ docker exec claude-mem-ollama ollama pull llama3.2:3b
 ```
 
 **That's it!** Web UI available at http://localhost:37777
+
+> **Build from source?** Use: `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build`
 
 ---
 
@@ -176,10 +178,13 @@ Add to `~/.claude/settings.json`:
 ## Commands
 
 ```bash
-# Start services
+# Start services (pulls pre-built images)
 docker compose up -d                    # Worker + Chroma
 docker compose --profile ollama up -d   # + Local Ollama
 docker compose --profile gpu up -d      # + Ollama with GPU
+
+# Build from source (for development)
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 
 # Manage Ollama models
 docker exec claude-mem-ollama ollama pull llama3.2:3b

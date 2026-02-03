@@ -8,9 +8,12 @@
 #   3. Run: docker compose up -d
 #
 # PROFILES:
-#   docker compose up -d                  # Default: worker + chroma (use external Ollama)
+#   docker compose up -d                  # Default: worker + chroma (pulls images)
 #   docker compose --profile ollama up -d # Include local Ollama container
 #   docker compose --profile gpu up -d    # Ollama with GPU acceleration
+#
+# BUILD FROM SOURCE:
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 #
 # =============================================================================
 
@@ -19,10 +22,7 @@ services:
   # Worker Service - Core claude-mem API
   # ---------------------------------------------------------------------------
   worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: ${CLAUDE_MEM_IMAGE:-claude-mem:latest}
+    image: ${CLAUDE_MEM_IMAGE:-ghcr.io/sebastienvg/mem-claude:latest}
     container_name: claude-mem-worker
     ports:
       - "${CLAUDE_MEM_WORKER_PORT:-37777}:37777"
@@ -79,7 +79,7 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
-  # Ollama - Local AI (optional, use profile: ollama or gpu)
+  # Ollama - Local AI (optional, use profile: ollama)
   # ---------------------------------------------------------------------------
   ollama:
     image: ollama/ollama:latest
@@ -98,7 +98,7 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
-  # Ollama with GPU - NVIDIA GPU acceleration
+  # Ollama with GPU - NVIDIA GPU acceleration (use profile: gpu)
   # ---------------------------------------------------------------------------
   ollama-gpu:
     image: ollama/ollama:latest

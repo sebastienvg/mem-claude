@@ -1,0 +1,21 @@
+# =============================================================================
+# Docker Compose Build Override
+# =============================================================================
+#
+# Use this file to build from source instead of pulling pre-built images.
+#
+# USAGE:
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+#
+# Or set as default:
+#   export COMPOSE_FILE=docker-compose.yml:docker-compose.build.yml
+#   docker compose up -d --build
+#
+# =============================================================================
+
+services:
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: claude-mem:local
