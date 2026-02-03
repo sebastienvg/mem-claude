@@ -4,19 +4,17 @@
  * Handles loading settings from file with mode-based filtering for observation types.
  */
 
-import path from 'path';
-import { homedir } from 'os';
 import { SettingsDefaultsManager } from '../../shared/SettingsDefaultsManager.js';
+import { USER_SETTINGS_PATH } from '../../shared/paths.js';
 import { ModeManager } from '../domain/ModeManager.js';
 import type { ContextConfig } from './types.js';
 
 /**
  * Load all context configuration settings
- * Priority: ~/.claude-mem/settings.json > env var > defaults
+ * Priority: USER_SETTINGS_PATH > env var > defaults
  */
 export function loadContextConfig(): ContextConfig {
-  const settingsPath = path.join(homedir(), '.claude-mem', 'settings.json');
-  const settings = SettingsDefaultsManager.loadFromFile(settingsPath);
+  const settings = SettingsDefaultsManager.loadFromFile(USER_SETTINGS_PATH);
 
   // For non-code modes, use all types/concepts from active mode instead of settings
   const modeId = settings.CLAUDE_MEM_MODE;

@@ -7,7 +7,7 @@
 
 import { basename } from 'path';
 import type { EventHandler, NormalizedHookInput, HookResult } from '../types.js';
-import { ensureWorkerRunning, getWorkerPort } from '../../shared/worker-utils.js';
+import { ensureWorkerRunning, getWorkerUrl } from '../../shared/worker-utils.js';
 import { HOOK_EXIT_CODES } from '../../shared/hook-constants.js';
 
 export const userMessageHandler: EventHandler = {
@@ -15,13 +15,13 @@ export const userMessageHandler: EventHandler = {
     // Ensure worker is running
     await ensureWorkerRunning();
 
-    const port = getWorkerPort();
+    const baseUrl = getWorkerUrl();
     const project = basename(input.cwd ?? process.cwd());
 
     // Fetch formatted context directly from worker API
     // Note: Removed AbortSignal.timeout to avoid Windows Bun cleanup issue (libuv assertion)
     const response = await fetch(
-      `http://127.0.0.1:${port}/api/context/inject?project=${encodeURIComponent(project)}&colors=true`,
+      `${baseUrl}/api/context/inject?project=${encodeURIComponent(project)}&colors=true`,
       { method: 'GET' }
     );
 
@@ -38,7 +38,7 @@ export const userMessageHandler: EventHandler = {
       output +
       "\n\n" + String.fromCodePoint(0x1F4A1) + " New! Wrap all or part of any message with <private> ... </private> to prevent storing sensitive information in your observation history.\n" +
       "\n" + String.fromCodePoint(0x1F4AC) + " Community https://discord.gg/J4wttp9vDu" +
-      `\n` + String.fromCodePoint(0x1F4FA) + ` Watch live in browser http://localhost:${port}/\n`
+      `\n` + String.fromCodePoint(0x1F4FA) + ` Watch live in browser ${baseUrl}/\n`
     );
 
     return { exitCode: HOOK_EXIT_CODES.USER_MESSAGE_ONLY };

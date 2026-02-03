@@ -7,14 +7,13 @@
  */
 
 import { existsSync, readFileSync, writeFileSync, renameSync } from 'fs';
-import path from 'path';
-import os from 'os';
 import { logger } from './logger.js';
 import { formatDate, groupByDate } from '../shared/timeline-formatting.js';
 import { SettingsDefaultsManager } from '../shared/SettingsDefaultsManager.js';
+import { USER_SETTINGS_PATH } from '../shared/paths.js';
 import { getWorkerHost } from '../shared/worker-utils.js';
 
-const SETTINGS_PATH = path.join(os.homedir(), '.claude-mem', 'settings.json');
+const SETTINGS_PATH = USER_SETTINGS_PATH;
 
 /**
  * Validate that a file path is safe for CLAUDE.md generation.
