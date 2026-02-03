@@ -84,7 +84,7 @@ services:
   ollama:
     image: ollama/ollama:latest
     container_name: claude-mem-ollama
-    profiles: ["ollama", "gpu"]
+    profiles: ["ollama"]
     ports:
       - "11434:11434"
     volumes:
