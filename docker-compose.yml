@@ -23,7 +23,7 @@ services:
       - CLAUDE_MEM_OLLAMA_MODEL=${CLAUDE_MEM_OLLAMA_MODEL:-llama3.2}
     depends_on:
       chroma:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:37777/api/readiness"]
       interval: 10s
@@ -41,12 +41,8 @@ services:
       - ANONYMIZED_TELEMETRY=False
       - CHROMA_SERVER_AUTHN_PROVIDER=
       - CHROMA_SERVER_AUTHN_CREDENTIALS=
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 5s
+    # Note: Chroma image has minimal tooling, skip health check
+    # Worker will retry connection if Chroma isn't ready
     restart: unless-stopped
 
   # Optional: Local Ollama for self-hosted AI (no API costs)

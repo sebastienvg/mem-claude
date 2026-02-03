@@ -54,7 +54,7 @@ import { SSEBroadcaster } from './worker/SSEBroadcaster.js';
 import { SDKAgent } from './worker/SDKAgent.js';
 import { GeminiAgent } from './worker/GeminiAgent.js';
 import { OpenRouterAgent } from './worker/OpenRouterAgent.js';
-import { OllamaAgent } from './worker/OllamaAgent.js';
+import { OllamaAgent, isOllamaSelected } from './worker/OllamaAgent.js';
 import { PaginationHelper } from './worker/PaginationHelper.js';
 import { SettingsManager } from './worker/SettingsManager.js';
 import { SearchManager } from './worker/SearchManager.js';
@@ -352,7 +352,12 @@ export class WorkerService {
     const sid = session.sessionDbId;
     logger.info('SYSTEM', `Starting generator (${source})`, { sessionId: sid });
 
-    session.generatorPromise = this.sdkAgent.startSession(session, this)
+    // Select agent based on provider setting (same logic as SessionRoutes)
+    const agent = isOllamaSelected() ? this.ollamaAgent : this.sdkAgent;
+    const agentName = isOllamaSelected() ? 'Ollama' : 'Claude SDK';
+    logger.debug('SYSTEM', `Using ${agentName} agent for session ${sid}`);
+
+    session.generatorPromise = agent.startSession(session, this)
       .catch(error => {
         logger.error('SDK', 'Session generator failed', {
           sessionId: session.sessionDbId,

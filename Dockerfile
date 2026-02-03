@@ -43,6 +43,10 @@ WORKDIR /app
 COPY --from=builder /app/plugin ./plugin
 COPY --from=builder /app/package.json ./
 
+# Install runtime dependencies for Chroma embeddings
+# chromadb-default-embed provides the default embedding function
+RUN bun add chromadb chromadb-default-embed --production
+
 # Create data directory (bun user already exists in base image)
 RUN mkdir -p /data \
     && chown -R bun:bun /app /data

@@ -27,14 +27,12 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { getWorkerPort, getWorkerHost } from '../shared/worker-utils.js';
+import { getWorkerUrl } from '../shared/worker-utils.js';
 
 /**
  * Worker HTTP API configuration
  */
-const WORKER_PORT = getWorkerPort();
-const WORKER_HOST = getWorkerHost();
-const WORKER_BASE_URL = `http://${WORKER_HOST}:${WORKER_PORT}`;
+const WORKER_BASE_URL = getWorkerUrl();
 
 /**
  * Map tool names to Worker HTTP endpoints

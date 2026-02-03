@@ -47,6 +47,7 @@ export class SessionStore {
     this.renameSessionIdColumns();
     this.repairSessionIdColumnRename();
     this.addFailedAtEpochColumn();
+    this.createConversationHistoryTable();
   }
 
   /**
@@ -2120,5 +2121,101 @@ export class SessionStore {
     );
 
     return { imported: true, id: result.lastInsertRowid as number };
+  }
+
+  // ============================================================================
+  // Conversation History Persistence (for Ollama/non-SDK agents)
+  // ============================================================================
+
+  /**
+   * Create conversation_history table (migration 21)
+   * Persists conversation context to survive container restarts
+   */
+  private createConversationHistoryTable(): void {
+    const applied = this.db.prepare('SELECT version FROM schema_versions WHERE version = ?').get(21) as SchemaVersion | undefined;
+    if (applied) return;
+
+    logger.debug('DB', 'Creating conversation_history table');
+
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS conversation_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_db_id INTEGER NOT NULL,
+        message_index INTEGER NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+        content TEXT NOT NULL,
+        created_at_epoch INTEGER NOT NULL,
+        FOREIGN KEY(session_db_id) REFERENCES sdk_sessions(id) ON DELETE CASCADE,
+        UNIQUE(session_db_id, message_index)
+      )
+    `);
+
+    this.db.run(`
+      CREATE INDEX IF NOT EXISTS idx_conversation_history_session ON conversation_history(session_db_id);
+      CREATE INDEX IF NOT EXISTS idx_conversation_history_order ON conversation_history(session_db_id, message_index);
+    `);
+
+    this.db.prepare('INSERT OR IGNORE INTO schema_versions (version, applied_at) VALUES (?, ?)').run(21, new Date().toISOString());
+    logger.debug('DB', 'Successfully created conversation_history table');
+  }
+
+  /**
+   * Save conversation history for a session
+   * Replaces any existing history for the session (upsert pattern)
+   */
+  saveConversationHistory(sessionDbId: number, messages: Array<{ role: 'user' | 'assistant'; content: string }>): void {
+    if (messages.length === 0) return;
+
+    const now = Date.now();
+
+    // Use a transaction for atomic update
+    const saveTx = this.db.transaction(() => {
+      // Delete existing history for this session
+      this.db.prepare('DELETE FROM conversation_history WHERE session_db_id = ?').run(sessionDbId);
+
+      // Insert new history
+      const stmt = this.db.prepare(`
+        INSERT INTO conversation_history (session_db_id, message_index, role, content, created_at_epoch)
+        VALUES (?, ?, ?, ?, ?)
+      `);
+
+      for (let i = 0; i < messages.length; i++) {
+        stmt.run(sessionDbId, i, messages[i].role, messages[i].content, now);
+      }
+    });
+
+    saveTx();
+    logger.debug('DB', 'Saved conversation history', { sessionDbId, messageCount: messages.length });
+  }
+
+  /**
+   * Load conversation history for a session
+   * Returns messages in order, ready to be used by agents
+   */
+  loadConversationHistory(sessionDbId: number): Array<{ role: 'user' | 'assistant'; content: string }> {
+    const stmt = this.db.prepare(`
+      SELECT role, content
+      FROM conversation_history
+      WHERE session_db_id = ?
+      ORDER BY message_index ASC
+    `);
+
+    const rows = stmt.all(sessionDbId) as Array<{ role: string; content: string }>;
+
+    logger.debug('DB', 'Loaded conversation history', { sessionDbId, messageCount: rows.length });
+
+    return rows.map(row => ({
+      role: row.role as 'user' | 'assistant',
+      content: row.content
+    }));
+  }
+
+  /**
+   * Clear conversation history for a session
+   * Called when session completes or is manually reset
+   */
+  clearConversationHistory(sessionDbId: number): void {
+    this.db.prepare('DELETE FROM conversation_history WHERE session_db_id = ?').run(sessionDbId);
+    logger.debug('DB', 'Cleared conversation history', { sessionDbId });
   }
 }

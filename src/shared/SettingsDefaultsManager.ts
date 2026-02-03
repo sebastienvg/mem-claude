@@ -122,9 +122,16 @@ export class SettingsDefaultsManager {
   }
 
   /**
-   * Get a default value from defaults (no environment variable override)
+   * Get a setting value with environment variable override
+   * Priority: env var > hardcoded default
+   * This is essential for container deployments where env vars configure paths
    */
   static get(key: keyof SettingsDefaults): string {
+    // Check environment variable first (critical for container deployments)
+    const envValue = process.env[key];
+    if (envValue !== undefined) {
+      return envValue;
+    }
     return this.DEFAULTS[key];
   }
 
