@@ -17,9 +17,13 @@ export interface SettingsDefaults {
   CLAUDE_MEM_CONTEXT_OBSERVATIONS: string;
   CLAUDE_MEM_WORKER_PORT: string;
   CLAUDE_MEM_WORKER_HOST: string;
+  CLAUDE_MEM_WORKER_URL: string;  // Full URL override (takes precedence over host+port)
   CLAUDE_MEM_SKIP_TOOLS: string;
+  // Chroma Configuration
+  CLAUDE_MEM_CHROMA_MODE: string;  // 'auto' | 'mcp' | 'http' | 'disabled'
+  CLAUDE_MEM_CHROMA_URL: string;   // URL for HTTP mode
   // AI Provider Configuration
-  CLAUDE_MEM_PROVIDER: string;  // 'claude' | 'gemini' | 'openrouter'
+  CLAUDE_MEM_PROVIDER: string;  // 'claude' | 'gemini' | 'openrouter' | 'ollama'
   CLAUDE_MEM_GEMINI_API_KEY: string;
   CLAUDE_MEM_GEMINI_MODEL: string;  // 'gemini-2.5-flash-lite' | 'gemini-2.5-flash' | 'gemini-3-flash'
   CLAUDE_MEM_GEMINI_RATE_LIMITING_ENABLED: string;  // 'true' | 'false' - enable rate limiting for free tier
@@ -29,6 +33,11 @@ export interface SettingsDefaults {
   CLAUDE_MEM_OPENROUTER_APP_NAME: string;
   CLAUDE_MEM_OPENROUTER_MAX_CONTEXT_MESSAGES: string;
   CLAUDE_MEM_OPENROUTER_MAX_TOKENS: string;
+  // Ollama Configuration (local self-hosted)
+  CLAUDE_MEM_OLLAMA_URL: string;  // Ollama API endpoint (default: http://localhost:11434)
+  CLAUDE_MEM_OLLAMA_MODEL: string;  // Model to use (e.g., 'llama3.2', 'mistral', 'phi3')
+  CLAUDE_MEM_OLLAMA_MAX_CONTEXT_MESSAGES: string;
+  CLAUDE_MEM_OLLAMA_MAX_TOKENS: string;
   // System Configuration
   CLAUDE_MEM_DATA_DIR: string;
   CLAUDE_MEM_LOG_LEVEL: string;
@@ -61,7 +70,11 @@ export class SettingsDefaultsManager {
     CLAUDE_MEM_CONTEXT_OBSERVATIONS: '50',
     CLAUDE_MEM_WORKER_PORT: '37777',
     CLAUDE_MEM_WORKER_HOST: '127.0.0.1',
+    CLAUDE_MEM_WORKER_URL: '',  // Empty = construct from host+port; set explicitly for container/remote mode
     CLAUDE_MEM_SKIP_TOOLS: 'ListMcpResourcesTool,SlashCommand,Skill,TodoWrite,AskUserQuestion',
+    // Chroma Configuration
+    CLAUDE_MEM_CHROMA_MODE: 'auto',  // 'auto' = HTTP if URL set, MCP if available, disabled otherwise
+    CLAUDE_MEM_CHROMA_URL: 'http://localhost:8000',  // Default Chroma HTTP server URL
     // AI Provider Configuration
     CLAUDE_MEM_PROVIDER: 'claude',  // Default to Claude
     CLAUDE_MEM_GEMINI_API_KEY: '',  // Empty by default, can be set via UI or env
@@ -73,6 +86,11 @@ export class SettingsDefaultsManager {
     CLAUDE_MEM_OPENROUTER_APP_NAME: 'claude-mem',  // App name for OpenRouter analytics
     CLAUDE_MEM_OPENROUTER_MAX_CONTEXT_MESSAGES: '20',  // Max messages in context window
     CLAUDE_MEM_OPENROUTER_MAX_TOKENS: '100000',  // Max estimated tokens (~100k safety limit)
+    // Ollama Configuration (local self-hosted)
+    CLAUDE_MEM_OLLAMA_URL: 'http://localhost:11434',  // Default Ollama endpoint
+    CLAUDE_MEM_OLLAMA_MODEL: 'llama3.2',  // Default model (small, fast)
+    CLAUDE_MEM_OLLAMA_MAX_CONTEXT_MESSAGES: '20',  // Max messages in context window
+    CLAUDE_MEM_OLLAMA_MAX_TOKENS: '100000',  // Max estimated tokens
     // System Configuration
     CLAUDE_MEM_DATA_DIR: join(homedir(), '.claude-mem'),
     CLAUDE_MEM_LOG_LEVEL: 'INFO',

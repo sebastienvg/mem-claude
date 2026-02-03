@@ -28,11 +28,22 @@ For full documentation, see the **[original project](https://github.com/thedotma
 ### Single Container
 
 ```bash
+# Using Ollama (fully local, no API costs)
 docker run -d \
   --name claude-mem \
   -p 37777:37777 \
   -v ~/.claude-mem:/data \
-  -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+  -e CLAUDE_MEM_PROVIDER=ollama \
+  -e CLAUDE_MEM_OLLAMA_URL=http://host.docker.internal:11434 \
+  registry.evthings.space/mem-claude/claude-mem:latest
+
+# Or using OpenRouter (free models available)
+docker run -d \
+  --name claude-mem \
+  -p 37777:37777 \
+  -v ~/.claude-mem:/data \
+  -e CLAUDE_MEM_PROVIDER=openrouter \
+  -e CLAUDE_MEM_OPENROUTER_API_KEY=$OPENROUTER_API_KEY \
   registry.evthings.space/mem-claude/claude-mem:latest
 ```
 
@@ -56,14 +67,18 @@ docker compose up -d
 
 ## Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `ANTHROPIC_API_KEY` | Yes* | Claude API key |
-| `CLAUDE_MEM_GEMINI_API_KEY` | Yes* | Alternative: Gemini API key |
-| `CLAUDE_MEM_OPENROUTER_API_KEY` | Yes* | Alternative: OpenRouter API key |
-| `CLAUDE_MEM_WORKER_PORT` | No | HTTP port (default: 37777) |
+The worker service uses an AI model to compress and summarize your observations. Choose **one** provider:
 
-*At least one AI provider key required for memory compression.
+| Variable | Description |
+|----------|-------------|
+| `CLAUDE_MEM_PROVIDER` | Provider: `ollama`, `openrouter`, `gemini`, or `claude` |
+| `CLAUDE_MEM_OLLAMA_URL` | Ollama endpoint (default: `http://localhost:11434`) |
+| `CLAUDE_MEM_OLLAMA_MODEL` | Ollama model (default: `llama3.2`) |
+| `CLAUDE_MEM_OPENROUTER_API_KEY` | OpenRouter API key |
+| `CLAUDE_MEM_GEMINI_API_KEY` | Gemini API key |
+| `ANTHROPIC_API_KEY` | Claude API key |
+
+**Recommended:** Use **Ollama** for fully local operation with no API costs. See "Using Ollama" below.
 
 ---
 
@@ -91,6 +106,41 @@ curl http://localhost:37777/api/readiness
 docker pull registry.evthings.space/mem-claude/claude-mem:latest
 docker compose up -d
 ```
+
+---
+
+## Using Ollama (Recommended)
+
+For fully self-hosted operation with no API costs, use Ollama:
+
+### If you already have Ollama running locally:
+
+```bash
+# Point to your existing Ollama instance
+docker run -d \
+  --name claude-mem \
+  -p 37777:37777 \
+  -v ~/.claude-mem:/data \
+  -e CLAUDE_MEM_PROVIDER=ollama \
+  -e CLAUDE_MEM_OLLAMA_URL=http://host.docker.internal:11434 \
+  registry.evthings.space/mem-claude/claude-mem:latest
+```
+
+### If you don't have Ollama:
+
+Uncomment the `ollama` service in `docker-compose.yml`, then:
+
+```bash
+docker compose up -d
+
+# Pull a model (first time only)
+docker exec claude-mem-ollama ollama pull llama3.2
+```
+
+### Recommended Ollama models:
+- `llama3.2` - Fast, good quality (default)
+- `mistral` - Excellent for structured extraction
+- `phi3` - Smaller, faster
 
 ---
 

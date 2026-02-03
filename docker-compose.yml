@@ -19,6 +19,8 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - CLAUDE_MEM_GEMINI_API_KEY=${CLAUDE_MEM_GEMINI_API_KEY:-}
       - CLAUDE_MEM_OPENROUTER_API_KEY=${CLAUDE_MEM_OPENROUTER_API_KEY:-}
+      - CLAUDE_MEM_OLLAMA_URL=${CLAUDE_MEM_OLLAMA_URL:-http://ollama:11434}
+      - CLAUDE_MEM_OLLAMA_MODEL=${CLAUDE_MEM_OLLAMA_MODEL:-llama3.2}
     depends_on:
       chroma:
         condition: service_healthy
@@ -47,11 +49,31 @@ services:
       start_period: 5s
     restart: unless-stopped
 
+  # Optional: Local Ollama for self-hosted AI (no API costs)
+  # Uncomment to use Ollama instead of cloud providers
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: claude-mem-ollama
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama-data:/root/.ollama
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 30s
+  #   restart: unless-stopped
+  #   # Pull a model on first run: docker exec claude-mem-ollama ollama pull llama3.2
+
 volumes:
   claude-mem-data:
     name: claude-mem-data
   chroma-data:
     name: claude-mem-chroma-data
+  # ollama-data:
+  #   name: claude-mem-ollama-data
 
 networks:
   default:
