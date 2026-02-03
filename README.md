@@ -116,6 +116,19 @@ Start a new Claude Code session in the terminal and enter the following commands
 
 Restart Claude Code. Context from previous sessions will automatically appear in new sessions.
 
+### Docker Quick Start
+
+```bash
+docker run -d \
+  --name claude-mem \
+  -p 37777:37777 \
+  -v ~/.claude-mem:/data \
+  -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+  registry.evthings.space/mem-claude/claude-mem:latest
+```
+
+See [Docker documentation](https://docs.claude-mem.ai/docker) for full setup.
+
 **Key Features:**
 
 - 🧠 **Persistent Memory** - Context survives across sessions

@@ -1,0 +1,93 @@
+---
+title: Docker Installation
+description: Run claude-mem using Docker
+---
+
+# Docker Installation
+
+Run claude-mem in a container for easy deployment and isolation.
+
+## Quick Start
+
+```bash
+# Pull the latest image
+docker pull registry.evthings.space/mem-claude/claude-mem:latest
+
+# Run with your API key
+docker run -d \
+  --name claude-mem \
+  -p 37777:37777 \
+  -v ~/.claude-mem:/data \
+  -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+  registry.evthings.space/mem-claude/claude-mem:latest
+```
+
+## Docker Compose (Recommended)
+
+For the full stack including vector search:
+
+```bash
+# Clone the repository
+git clone https://github.com/thedotmack/claude-mem.git
+cd claude-mem
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your API key
+
+# Start services
+docker compose up -d
+```
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `ANTHROPIC_API_KEY` | Yes* | Claude API key |
+| `CLAUDE_MEM_GEMINI_API_KEY` | Yes* | Alternative: Gemini API key |
+| `CLAUDE_MEM_OPENROUTER_API_KEY` | Yes* | Alternative: OpenRouter API key |
+| `CLAUDE_MEM_WORKER_PORT` | No | HTTP port (default: 37777) |
+| `CLAUDE_MEM_MODEL` | No | Model for compression |
+
+*At least one AI provider key required for memory compression.
+
+## Data Persistence
+
+Mount `/data` to persist:
+- SQLite database
+- Vector embeddings
+- Session logs
+- Configuration
+
+```bash
+-v ~/.claude-mem:/data
+```
+
+## Health Check
+
+```bash
+curl http://localhost:37777/api/readiness
+```
+
+## Updating
+
+```bash
+docker pull registry.evthings.space/mem-claude/claude-mem:latest
+docker compose up -d
+```
+
+## Troubleshooting
+
+### Container won't start
+Check logs: `docker logs claude-mem`
+
+### Permission denied on /data
+Ensure mount directory exists and is writable:
+```bash
+mkdir -p ~/.claude-mem
+chmod 755 ~/.claude-mem
+```
+
+### Can't connect to worker
+Verify port is exposed: `docker ps`
+Check firewall allows 37777

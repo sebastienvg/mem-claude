@@ -1,0 +1,21 @@
+# Development overrides - copy to docker-compose.override.yml
+services:
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # Rebuild on source changes
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    volumes:
+      # Mount source for hot reload (dev only)
+      - ./src:/app/src:ro
+      # Local data directory for debugging
+      - ~/.claude-mem:/data
+    environment:
+      - CLAUDE_MEM_LOG_LEVEL=DEBUG
+
+  chroma:
+    ports:
+      # Expose Chroma for direct debugging
+      - "8000:8000"

@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Version control
+.git/
+.gitignore
+
+# Tests
+tests/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Development
+private/
+cursor-hooks/
+.devcontainer/
+.github/
+.vscode/
+plans/
+
+# Logs and temp files
+*.log
+.DS_Store
+
+# Keep plugin directory (negation)
+!plugin/
+!plugin/**

@@ -1,0 +1,58 @@
+services:
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: claude-mem-worker
+    ports:
+      - "${CLAUDE_MEM_WORKER_PORT:-37777}:37777"
+    volumes:
+      - claude-mem-data:/data
+    environment:
+      - CLAUDE_MEM_DATA_DIR=/data
+      - CLAUDE_MEM_WORKER_HOST=0.0.0.0
+      - CLAUDE_MEM_WORKER_PORT=37777
+      - CLAUDE_MEM_CHROMA_MODE=http
+      - CLAUDE_MEM_CHROMA_URL=http://chroma:8000
+      - CLAUDE_MEM_MODEL=${CLAUDE_MEM_MODEL:-claude-sonnet-4-5}
+      - CLAUDE_MEM_PROVIDER=${CLAUDE_MEM_PROVIDER:-claude}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - CLAUDE_MEM_GEMINI_API_KEY=${CLAUDE_MEM_GEMINI_API_KEY:-}
+      - CLAUDE_MEM_OPENROUTER_API_KEY=${CLAUDE_MEM_OPENROUTER_API_KEY:-}
+    depends_on:
+      chroma:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:37777/api/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: claude-mem-chroma
+    volumes:
+      - chroma-data:/chroma/chroma
+    environment:
+      - ANONYMIZED_TELEMETRY=False
+      - CHROMA_SERVER_AUTHN_PROVIDER=
+      - CHROMA_SERVER_AUTHN_CREDENTIALS=
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+volumes:
+  claude-mem-data:
+    name: claude-mem-data
+  chroma-data:
+    name: claude-mem-chroma-data
+
+networks:
+  default:
+    name: claude-mem-network
