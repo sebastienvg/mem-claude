@@ -1,6 +1,16 @@
 name: Build and Publish Docker Image
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Dockerfile'
+      - 'docker-entrypoint.sh'
+      - 'src/**'
+      - 'plugin/**'
+      - 'package.json'
+      - '.github/workflows/docker-publish.yml'
   release:
     types: [published]
   workflow_dispatch:
@@ -43,11 +53,13 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
+            type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.event_name == 'release' }}
             type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=sha,prefix=,format=short
 
       - name: Build and push
         id: build-and-push
