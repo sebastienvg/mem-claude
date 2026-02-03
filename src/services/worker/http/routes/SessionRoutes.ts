@@ -126,13 +126,31 @@ export class SessionRoutes extends BaseRouteHandler {
    */
   private startGeneratorWithProvider(
     session: ReturnType<typeof this.sessionManager.getSession>,
-    provider: 'claude' | 'gemini' | 'openrouter',
+    provider: 'claude' | 'gemini' | 'openrouter' | 'ollama',
     source: string
   ): void {
     if (!session) return;
 
-    const agent = provider === 'openrouter' ? this.openRouterAgent : (provider === 'gemini' ? this.geminiAgent : this.sdkAgent);
-    const agentName = provider === 'openrouter' ? 'OpenRouter' : (provider === 'gemini' ? 'Gemini' : 'Claude SDK');
+    // Select agent based on provider
+    let agent: SDKAgent | GeminiAgent | OpenRouterAgent | OllamaAgent;
+    let agentName: string;
+    switch (provider) {
+      case 'ollama':
+        agent = this.ollamaAgent;
+        agentName = 'Ollama';
+        break;
+      case 'openrouter':
+        agent = this.openRouterAgent;
+        agentName = 'OpenRouter';
+        break;
+      case 'gemini':
+        agent = this.geminiAgent;
+        agentName = 'Gemini';
+        break;
+      default:
+        agent = this.sdkAgent;
+        agentName = 'Claude SDK';
+    }
 
     logger.info('SESSION', `Generator auto-starting (${source}) using ${agentName}`, {
       sessionId: session.sessionDbId,

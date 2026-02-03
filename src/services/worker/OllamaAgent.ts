@@ -80,6 +80,30 @@ export class OllamaAgent {
       // Get Ollama configuration
       const { baseUrl, model } = this.getOllamaConfig();
 
+      // For Ollama, use contentSessionId as memorySessionId since Ollama doesn't provide session IDs
+      // This must happen before any observation processing
+      if (!session.memorySessionId) {
+        session.memorySessionId = session.contentSessionId;
+        this.dbManager.getSessionStore().updateMemorySessionId(session.sessionDbId, session.contentSessionId);
+        logger.info('SDK', 'Set memorySessionId from contentSessionId for Ollama', {
+          sessionId: session.sessionDbId,
+          memorySessionId: session.contentSessionId
+        });
+      }
+
+      // Load persisted conversation history (survives container restarts)
+      // This prevents hallucinations when processing queued messages after restart
+      if (session.conversationHistory.length === 0) {
+        const persistedHistory = this.dbManager.getSessionStore().loadConversationHistory(session.sessionDbId);
+        if (persistedHistory.length > 0) {
+          session.conversationHistory = persistedHistory;
+          logger.info('SDK', 'Restored conversation history from database', {
+            sessionId: session.sessionDbId,
+            messageCount: persistedHistory.length
+          });
+        }
+      }
+
       // Load active mode
       const mode = ModeManager.getInstance().getActiveMode();
 
@@ -95,6 +119,9 @@ export class OllamaAgent {
       if (initResponse.content) {
         // Add response to conversation history
         session.conversationHistory.push({ role: 'assistant', content: initResponse.content });
+
+        // Persist conversation history to survive container restarts
+        this.dbManager.getSessionStore().saveConversationHistory(session.sessionDbId, session.conversationHistory);
 
         // Track token usage (estimated from Ollama's eval_count)
         const tokensUsed = initResponse.tokensUsed || 0;
@@ -157,6 +184,9 @@ export class OllamaAgent {
             // Add response to conversation history
             session.conversationHistory.push({ role: 'assistant', content: obsResponse.content });
 
+            // Persist conversation history to survive container restarts
+            this.dbManager.getSessionStore().saveConversationHistory(session.sessionDbId, session.conversationHistory);
+
             tokensUsed = obsResponse.tokensUsed || 0;
             session.cumulativeInputTokens += Math.floor(tokensUsed * 0.7);
             session.cumulativeOutputTokens += Math.floor(tokensUsed * 0.3);
@@ -194,6 +224,9 @@ export class OllamaAgent {
             // Add response to conversation history
             session.conversationHistory.push({ role: 'assistant', content: summaryResponse.content });
 
+            // Persist conversation history to survive container restarts
+            this.dbManager.getSessionStore().saveConversationHistory(session.sessionDbId, session.conversationHistory);
+
             tokensUsed = summaryResponse.tokensUsed || 0;
             session.cumulativeInputTokens += Math.floor(tokensUsed * 0.7);
             session.cumulativeOutputTokens += Math.floor(tokensUsed * 0.3);
@@ -213,6 +246,9 @@ export class OllamaAgent {
           );
         }
       }
+
+      // Clear conversation history on successful completion (session is done)
+      this.dbManager.getSessionStore().clearConversationHistory(session.sessionDbId);
 
       // Mark session complete
       const sessionDuration = Date.now() - session.startTime;
@@ -383,16 +419,19 @@ export class OllamaAgent {
   }
 
   /**
-   * Get Ollama configuration from settings or environment
+   * Get Ollama configuration from environment or settings
+   * Priority: env var > settings file > default
    */
   private getOllamaConfig(): { baseUrl: string; model: string } {
-    const settings = SettingsDefaultsManager.loadFromFile(USER_SETTINGS_PATH);
+    // Check env vars first for container deployments
+    const baseUrl = process.env.CLAUDE_MEM_OLLAMA_URL
+      || process.env.OLLAMA_URL
+      || SettingsDefaultsManager.loadFromFile(USER_SETTINGS_PATH).CLAUDE_MEM_OLLAMA_URL
+      || DEFAULT_OLLAMA_URL;
 
-    // Base URL: check settings first, then environment, then default
-    const baseUrl = settings.CLAUDE_MEM_OLLAMA_URL || process.env.OLLAMA_URL || DEFAULT_OLLAMA_URL;
-
-    // Model: from settings or default to llama3.2
-    const model = settings.CLAUDE_MEM_OLLAMA_MODEL || 'llama3.2';
+    const model = process.env.CLAUDE_MEM_OLLAMA_MODEL
+      || SettingsDefaultsManager.loadFromFile(USER_SETTINGS_PATH).CLAUDE_MEM_OLLAMA_MODEL
+      || 'llama3.2';
 
     return { baseUrl, model };
   }
@@ -402,8 +441,11 @@ export class OllamaAgent {
  * Check if Ollama is available (endpoint is reachable)
  */
 export async function isOllamaAvailable(): Promise<boolean> {
-  const settings = SettingsDefaultsManager.loadFromFile(USER_SETTINGS_PATH);
-  const baseUrl = settings.CLAUDE_MEM_OLLAMA_URL || process.env.OLLAMA_URL || DEFAULT_OLLAMA_URL;
+  // Check env vars first for container deployments
+  const baseUrl = process.env.CLAUDE_MEM_OLLAMA_URL
+    || process.env.OLLAMA_URL
+    || SettingsDefaultsManager.loadFromFile(USER_SETTINGS_PATH).CLAUDE_MEM_OLLAMA_URL
+    || DEFAULT_OLLAMA_URL;
 
   try {
     const response = await fetch(`${baseUrl}/api/tags`, { method: 'GET' });
@@ -415,8 +457,13 @@ export async function isOllamaAvailable(): Promise<boolean> {
 
 /**
  * Check if Ollama is the selected provider
+ * Checks env var first (for container deployments), then settings file
  */
 export function isOllamaSelected(): boolean {
+  // Check env var first for container deployments
+  if (process.env.CLAUDE_MEM_PROVIDER) {
+    return process.env.CLAUDE_MEM_PROVIDER === 'ollama';
+  }
   const settings = SettingsDefaultsManager.loadFromFile(USER_SETTINGS_PATH);
   return settings.CLAUDE_MEM_PROVIDER === 'ollama';
 }

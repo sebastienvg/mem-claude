@@ -82,12 +82,18 @@
     "test:search": "bun test tests/worker/search/",
     "test:context": "bun test tests/context/",
     "test:infra": "bun test tests/infrastructure/",
-    "test:server": "bun test tests/server/"
+    "test:server": "bun test tests/server/",
+    "docker:build": "docker compose build",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f worker",
+    "docker:reset": "docker compose down -v"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.1.76",
     "@modelcontextprotocol/sdk": "^1.25.1",
     "ansi-to-html": "^0.7.2",
+    "chromadb": "^1.9.2",
     "express": "^4.18.2",
     "glob": "^11.0.3",
     "handlebars": "^4.7.8",

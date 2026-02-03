@@ -5,7 +5,7 @@
  */
 
 import type { EventHandler, NormalizedHookInput, HookResult } from '../types.js';
-import { ensureWorkerRunning, getWorkerPort } from '../../shared/worker-utils.js';
+import { ensureWorkerRunning, getWorkerUrl } from '../../shared/worker-utils.js';
 import { logger } from '../../utils/logger.js';
 
 export const observationHandler: EventHandler = {
@@ -19,12 +19,12 @@ export const observationHandler: EventHandler = {
       throw new Error('observationHandler requires toolName');
     }
 
-    const port = getWorkerPort();
+    const baseUrl = getWorkerUrl();
 
     const toolStr = logger.formatTool(toolName, toolInput);
 
     logger.dataIn('HOOK', `PostToolUse: ${toolStr}`, {
-      workerPort: port
+      workerUrl: baseUrl
     });
 
     // Validate required fields before sending to worker
@@ -33,7 +33,7 @@ export const observationHandler: EventHandler = {
     }
 
     // Send to worker - worker handles privacy check and database operations
-    const response = await fetch(`http://127.0.0.1:${port}/api/sessions/observations`, {
+    const response = await fetch(`${baseUrl}/api/sessions/observations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

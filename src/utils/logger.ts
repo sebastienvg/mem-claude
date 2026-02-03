@@ -26,7 +26,8 @@ interface LogContext {
 
 // NOTE: This default must match DEFAULT_DATA_DIR in src/shared/SettingsDefaultsManager.ts
 // Inlined here to avoid circular dependency with SettingsDefaultsManager
-const DEFAULT_DATA_DIR = join(homedir(), '.claude-mem');
+// Check env var first for container deployments
+const DEFAULT_DATA_DIR = process.env.CLAUDE_MEM_DATA_DIR || join(homedir(), '.claude-mem');
 
 class Logger {
   private level: LogLevel | null = null;
