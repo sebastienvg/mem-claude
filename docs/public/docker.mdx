@@ -126,3 +126,49 @@ chmod 755 ~/.claude-mem
 ### Can't connect to worker
 Verify port is exposed: `docker ps`
 Check firewall allows 37777
+
+---
+
+## Integrating with Claude Code
+
+The containerized worker provides the HTTP API. To use with Claude Code:
+
+### Option 1: Plugin + Remote Worker (Recommended)
+
+Install the plugin, then point it to your container:
+
+```bash
+# In Claude Code:
+> /plugin marketplace add thedotmack/claude-mem
+> /plugin install claude-mem
+```
+
+Set worker URL in `~/.claude-mem/settings.json`:
+```json
+{
+  "CLAUDE_MEM_WORKER_URL": "http://localhost:37777"
+}
+```
+
+### Option 2: MCP Server Only
+
+Configure Claude Code's MCP settings (`~/.claude/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "claude-mem": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/path/to/mcp-server.cjs"],
+      "env": {
+        "CLAUDE_MEM_WORKER_URL": "http://localhost:37777"
+      }
+    }
+  }
+}
+```
+
+### Web Viewer UI
+
+Access the memory viewer at: **http://localhost:37777**

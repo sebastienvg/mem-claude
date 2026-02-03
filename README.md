@@ -144,6 +144,87 @@ docker exec claude-mem-ollama ollama pull llama3.2
 
 ---
 
+---
+
+## Integrating with Claude Code
+
+The containerized worker provides the HTTP API that powers claude-mem's memory features. To use it with Claude Code:
+
+### Option 1: Plugin + Remote Worker (Recommended)
+
+Install the plugin normally, then point it to your containerized worker:
+
+```bash
+# In Claude Code TUI:
+> /plugin marketplace add thedotmack/claude-mem
+> /plugin install claude-mem
+```
+
+Then set the worker URL in `~/.claude-mem/settings.json`:
+```json
+{
+  "CLAUDE_MEM_WORKER_URL": "http://localhost:37777"
+}
+```
+
+The plugin's hooks will send observations to your containerized worker for processing.
+
+### Option 2: MCP Server Only (Search Tools)
+
+If you only want the search/memory tools without the full plugin, configure Claude Code's MCP settings:
+
+**~/.claude/settings.json:**
+```json
+{
+  "mcpServers": {
+    "claude-mem": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/path/to/claude-mem/plugin/scripts/mcp-server.cjs"],
+      "env": {
+        "CLAUDE_MEM_WORKER_URL": "http://localhost:37777"
+      }
+    }
+  }
+}
+```
+
+This gives Claude access to memory search tools (`search`, `timeline`, `get_observation`, etc.).
+
+### Architecture
+
+```
+┌─────────────────┐     ┌──────────────────────────────────┐
+│  Claude Code    │     │  Docker Container                │
+│  (TUI)          │     │                                  │
+│                 │     │  ┌─────────────────────────────┐ │
+│  ┌───────────┐  │     │  │  Worker Service (37777)     │ │
+│  │ Hooks     │──┼────►│  │  - Observation processing   │ │
+│  │           │  │     │  │  - AI compression (Ollama)  │ │
+│  └───────────┘  │     │  │  - SQLite database          │ │
+│                 │     │  │  - Search API               │ │
+│  ┌───────────┐  │     │  └─────────────────────────────┘ │
+│  │ MCP Server│──┼────►│                                  │
+│  │ (search)  │  │     │  ┌─────────────────────────────┐ │
+│  └───────────┘  │     │  │  Chroma (8000)              │ │
+└─────────────────┘     │  │  - Vector embeddings        │ │
+                        │  └─────────────────────────────┘ │
+                        │                                  │
+                        │  ┌─────────────────────────────┐ │
+                        │  │  Ollama (11434) [optional]  │ │
+                        │  │  - Local AI compression     │ │
+                        │  └─────────────────────────────┘ │
+                        └──────────────────────────────────┘
+```
+
+### Web Viewer UI
+
+Access the memory viewer at: **http://localhost:37777**
+
+View your observations, search history, and manage settings through the web interface.
+
+---
+
 ## License
 
 This project is licensed under the **GNU Affero General Public License v3.0** (AGPL-3.0).
