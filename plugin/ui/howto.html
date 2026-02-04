@@ -404,6 +404,119 @@
       </div>
     </section>
 
+    <!-- Multi-Agent Setup -->
+    <section class="mb-16 fade-in">
+      <h2 class="text-2xl font-bold mb-6 flex items-center gap-3">
+        <span class="w-8 h-8 rounded-lg bg-accent-purple/10 text-accent-purple flex items-center justify-center text-sm font-mono">7</span>
+        Multi-Agent Setup
+      </h2>
+      <p class="text-warm-600 dark:text-cream-300 mb-6">
+        Multiple Claude instances can share memories with fine-grained visibility controls.
+        Perfect for teams or running multiple agents on the same project.
+      </p>
+
+      <div class="space-y-6">
+        <!-- Step 1: Register -->
+        <div class="bg-white dark:bg-warm-700/50 rounded-xl border border-cream-300 dark:border-warm-600/30 p-5 card-hover">
+          <h3 class="font-semibold mb-3 text-accent-blue flex items-center gap-2">
+            <span class="w-6 h-6 rounded bg-accent-blue/10 flex items-center justify-center text-xs">1</span>
+            Register an Agent
+          </h3>
+          <div class="code-block rounded-lg p-4 font-mono text-sm text-cream-200 overflow-x-auto">
+            <pre>curl -X POST http://localhost:37777/api/agents/register \
+  -H "Content-Type: application/json" \
+  -d '{"id": "agent1@laptop", "department": "backend"}'
+
+<span class="text-green-400"># Response includes your API key (save it!):</span>
+<span class="text-cream-300/70"># {"agent": {...}, "apiKey": "cm_abc123..."}</span></pre>
+          </div>
+        </div>
+
+        <!-- Step 2: Verify -->
+        <div class="bg-white dark:bg-warm-700/50 rounded-xl border border-cream-300 dark:border-warm-600/30 p-5 card-hover">
+          <h3 class="font-semibold mb-3 text-green-600 dark:text-green-400 flex items-center gap-2">
+            <span class="w-6 h-6 rounded bg-green-500/10 flex items-center justify-center text-xs">2</span>
+            Verify the Agent
+          </h3>
+          <div class="code-block rounded-lg p-4 font-mono text-sm text-cream-200 overflow-x-auto">
+            <pre>curl -X POST http://localhost:37777/api/agents/verify \
+  -H "Content-Type: application/json" \
+  -d '{"id": "agent1@laptop", "apiKey": "cm_abc123..."}'</pre>
+          </div>
+        </div>
+
+        <!-- Step 3: Use -->
+        <div class="bg-white dark:bg-warm-700/50 rounded-xl border border-cream-300 dark:border-warm-600/30 p-5 card-hover">
+          <h3 class="font-semibold mb-3 text-amber-600 dark:text-amber-400 flex items-center gap-2">
+            <span class="w-6 h-6 rounded bg-amber-500/10 flex items-center justify-center text-xs">3</span>
+            Use in Requests
+          </h3>
+          <div class="code-block rounded-lg p-4 font-mono text-sm text-cream-200 overflow-x-auto">
+            <pre>curl http://localhost:37777/api/search?q=authentication \
+  -H "Authorization: Bearer cm_abc123..."</pre>
+          </div>
+        </div>
+
+        <!-- Visibility Levels -->
+        <div class="bg-cream-200/50 dark:bg-warm-900/50 rounded-xl p-5 border border-cream-300 dark:border-warm-600/30">
+          <h3 class="font-semibold mb-4">Visibility Levels</h3>
+          <div class="grid md:grid-cols-2 gap-3">
+            <div class="flex items-center gap-3">
+              <span class="badge-bugfix px-2 py-1 rounded text-xs font-semibold">private</span>
+              <span class="text-sm text-warm-600 dark:text-cream-300">Only you can see</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="badge-feature px-2 py-1 rounded text-xs font-semibold">department</span>
+              <span class="text-sm text-warm-600 dark:text-cream-300">Same department sees</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="badge-refactor px-2 py-1 rounded text-xs font-semibold">project</span>
+              <span class="text-sm text-warm-600 dark:text-cream-300">All agents see (default)</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="badge-change px-2 py-1 rounded text-xs font-semibold">public</span>
+              <span class="text-sm text-warm-600 dark:text-cream-300">Visible globally</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Multiple Projects -->
+        <div class="bg-white dark:bg-warm-700/50 rounded-xl border border-cream-300 dark:border-warm-600/30 p-5 card-hover">
+          <h3 class="font-semibold mb-3 flex items-center gap-2">
+            <svg class="w-5 h-5 text-accent-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+            </svg>
+            Same Agent, Multiple Projects
+          </h3>
+          <p class="text-sm text-warm-600 dark:text-cream-300 mb-3">
+            Projects are identified by git remote URL. The same agent can work across different repos:
+          </p>
+          <div class="code-block rounded-lg p-4 font-mono text-sm text-cream-200">
+            <pre><span class="text-cream-300/60"># Each project is automatically identified:</span>
+github.com/you/project-a  <span class="text-green-400">← Agent works here</span>
+github.com/you/project-b  <span class="text-green-400">← Same agent, different memories</span>
+github.com/team/shared    <span class="text-green-400">← Team project, shared memories</span></pre>
+          </div>
+        </div>
+
+        <!-- Key Management -->
+        <div class="bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800/30 p-5">
+          <h3 class="font-semibold text-amber-700 dark:text-amber-400 mb-3 flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+            </svg>
+            Key Management
+          </h3>
+          <ul class="space-y-2 text-sm text-amber-700 dark:text-amber-300">
+            <li>• Keys expire after <strong>90 days</strong> by default</li>
+            <li>• <strong>5 failed attempts</strong> triggers a 5-minute lockout</li>
+            <li>• Use <code class="bg-amber-100 dark:bg-amber-900/50 px-1 rounded">/api/agents/rotate-key</code> to get a new key</li>
+            <li>• Use <code class="bg-amber-100 dark:bg-amber-900/50 px-1 rounded">/api/agents/me</code> to check key status</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
     <!-- Quick Reference -->
     <section class="mb-16 fade-in">
       <h2 class="text-2xl font-bold mb-6">Quick Reference</h2>
@@ -439,6 +552,18 @@
             <tr>
               <td class="px-5 py-3 text-warm-600 dark:text-cream-300">Deep dive</td>
               <td class="px-5 py-3 font-mono text-sm">"Get full details on observation #123"</td>
+            </tr>
+            <tr>
+              <td class="px-5 py-3 text-warm-600 dark:text-cream-300">Register agent</td>
+              <td class="px-5 py-3 font-mono text-sm">POST /api/agents/register</td>
+            </tr>
+            <tr>
+              <td class="px-5 py-3 text-warm-600 dark:text-cream-300">Check key status</td>
+              <td class="px-5 py-3 font-mono text-sm">GET /api/agents/me</td>
+            </tr>
+            <tr>
+              <td class="px-5 py-3 text-warm-600 dark:text-cream-300">Rotate API key</td>
+              <td class="px-5 py-3 font-mono text-sm">POST /api/agents/rotate-key</td>
             </tr>
           </tbody>
         </table>
