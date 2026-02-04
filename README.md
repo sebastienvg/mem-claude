@@ -21,6 +21,22 @@ Claude-Mem is a persistent memory compression system built for [Claude Code](htt
 
 ---
 
+## Prerequisites
+
+**Required on the host machine:**
+- Docker and Docker Compose
+- **Bun** - Required for Claude Code hooks to function
+
+```bash
+# Install bun (required for hooks)
+curl -fsSL https://bun.sh/install | bash
+source ~/.bashrc  # or restart your terminal
+```
+
+> **Important:** Even when running the worker in Docker, bun must be installed on your host machine. The Claude Code hooks run locally and use bun to communicate with the containerized worker.
+
+---
+
 ## Quick Start
 
 ```bash

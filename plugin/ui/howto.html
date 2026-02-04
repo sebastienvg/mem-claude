@@ -186,6 +186,125 @@
       </p>
     </section>
 
+    <!-- MCP Quick Setup -->
+    <section class="mb-16 fade-in">
+      <h2 class="text-2xl font-bold mb-6 flex items-center gap-3">
+        <span class="w-8 h-8 rounded-lg bg-green-500/10 text-green-600 dark:text-green-400 flex items-center justify-center text-sm font-mono">0</span>
+        MCP Quick Setup
+      </h2>
+      <p class="text-warm-600 dark:text-cream-300 mb-6">
+        Get your agent connected to claude-mem in 3 steps. The MCP server lets any Claude instance search and store memories.
+      </p>
+
+      <div class="space-y-6">
+        <!-- Step 1: Verify Worker -->
+        <div class="bg-white dark:bg-warm-700/50 rounded-xl border border-cream-300 dark:border-warm-600/30 p-5 card-hover">
+          <h3 class="font-semibold mb-3 text-accent-blue flex items-center gap-2">
+            <span class="w-6 h-6 rounded bg-accent-blue/10 flex items-center justify-center text-xs">1</span>
+            Verify Worker is Running
+          </h3>
+          <div class="code-block rounded-lg p-4 font-mono text-sm text-cream-200 overflow-x-auto">
+            <pre><span class="text-cream-300/60"># Check the worker is responding</span>
+curl http://localhost:37777/api/readiness
+
+<span class="text-green-400"># Expected: {"ready":true}</span></pre>
+          </div>
+        </div>
+
+        <!-- Step 2: Configure MCP -->
+        <div class="bg-white dark:bg-warm-700/50 rounded-xl border border-cream-300 dark:border-warm-600/30 p-5 card-hover">
+          <h3 class="font-semibold mb-3 text-green-600 dark:text-green-400 flex items-center gap-2">
+            <span class="w-6 h-6 rounded bg-green-500/10 flex items-center justify-center text-xs">2</span>
+            Add MCP Server to Claude Settings
+          </h3>
+          <p class="text-sm text-warm-600 dark:text-cream-300 mb-3">
+            Edit <code class="bg-cream-200 dark:bg-warm-800 px-2 py-0.5 rounded">~/.claude/settings.json</code> and add the claude-mem MCP server:
+          </p>
+          <div class="code-block rounded-lg p-4 font-mono text-sm text-cream-200 overflow-x-auto">
+            <pre>{
+  "mcpServers": {
+    <span class="text-amber-400">"claude-mem"</span>: {
+      "type": "stdio",
+      "command": "node",
+      "args": ["<span class="text-green-400">/path/to/plugin/scripts/mcp-server.cjs</span>"],
+      "env": {
+        "CLAUDE_MEM_WORKER_URL": "http://localhost:37777"
+      }
+    }
+  }
+}</pre>
+          </div>
+          <p class="text-sm text-warm-600 dark:text-cream-300 mt-3">
+            <strong>Tip:</strong> Replace <code class="bg-cream-200 dark:bg-warm-800 px-1 rounded">/path/to/plugin</code> with your actual plugin path
+            (e.g., <code class="bg-cream-200 dark:bg-warm-800 px-1 rounded">~/.claude/plugins/marketplaces/thedotmack/claude-mem</code>)
+          </p>
+        </div>
+
+        <!-- Step 3: Restart Claude -->
+        <div class="bg-white dark:bg-warm-700/50 rounded-xl border border-cream-300 dark:border-warm-600/30 p-5 card-hover">
+          <h3 class="font-semibold mb-3 text-amber-600 dark:text-amber-400 flex items-center gap-2">
+            <span class="w-6 h-6 rounded bg-amber-500/10 flex items-center justify-center text-xs">3</span>
+            Restart Claude Code
+          </h3>
+          <p class="text-sm text-warm-600 dark:text-cream-300">
+            Restart Claude Code to load the MCP server. You should see <code class="bg-cream-200 dark:bg-warm-800 px-2 py-0.5 rounded">claude-mem</code> in your available tools.
+          </p>
+        </div>
+
+        <!-- Agent Prompt Block -->
+        <div class="bg-accent-purple/5 dark:bg-accent-purple/10 rounded-xl border border-accent-purple/20 p-5">
+          <h3 class="font-semibold mb-3 text-accent-purple flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+            </svg>
+            Prompt to Give Your Agent
+          </h3>
+          <p class="text-sm text-warm-600 dark:text-cream-300 mb-3">
+            Copy this prompt and give it to your Claude agent to connect to the memory system:
+          </p>
+          <div class="code-block rounded-lg p-4 font-mono text-sm text-cream-200 overflow-x-auto relative group">
+            <button onclick="copyPrompt(this)" class="absolute top-2 right-2 p-2 rounded bg-warm-600/50 hover:bg-warm-500/50 transition-colors opacity-0 group-hover:opacity-100">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+              </svg>
+            </button>
+            <pre id="agent-prompt">You have access to claude-mem, a persistent memory system.
+
+<span class="text-amber-400">Available MCP tools:</span>
+- <span class="text-green-400">search</span>: Search past observations (query, limit, project, type, dateStart, dateEnd)
+- <span class="text-green-400">timeline</span>: Get context around a specific observation (anchor or query)
+- <span class="text-green-400">get_observations</span>: Fetch full details for specific IDs
+
+<span class="text-amber-400">3-layer workflow for efficient memory access:</span>
+1. search(query) → Get index with IDs (~50-100 tokens/result)
+2. timeline(anchor=ID) → Get context around interesting results
+3. get_observations([IDs]) → Fetch full details ONLY for filtered IDs
+
+<span class="text-amber-400">Examples:</span>
+- "What bugs have we fixed?" → search for type:bugfix
+- "What did we work on yesterday?" → search with dateStart
+- "Tell me about authentication changes" → search query="authentication"
+
+Always use search first to find relevant IDs, then fetch details only for what you need.</pre>
+          </div>
+        </div>
+
+        <!-- Verify Connection -->
+        <div class="bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-200 dark:border-green-800/30 p-5">
+          <h3 class="font-semibold text-green-700 dark:text-green-400 mb-3 flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            Verify It's Working
+          </h3>
+          <p class="text-sm text-green-700 dark:text-green-300">
+            Ask your agent: <span class="font-mono bg-green-100 dark:bg-green-900/50 px-2 py-0.5 rounded">"Search my memory for recent work"</span>
+            <br>If configured correctly, it will use the MCP tools to search your observations.
+          </p>
+        </div>
+      </div>
+    </section>
+
     <!-- How It Works -->
     <section class="mb-16 fade-in">
       <h2 class="text-2xl font-bold mb-6 flex items-center gap-3">
@@ -632,6 +751,18 @@ github.com/team/shared    <span class="text-green-400">← Team project, shared 
       el.style.animationPlayState = 'paused';
       observer.observe(el);
     });
+
+    // Copy prompt to clipboard
+    function copyPrompt(button) {
+      const promptText = document.getElementById('agent-prompt').textContent;
+      navigator.clipboard.writeText(promptText).then(() => {
+        const originalHTML = button.innerHTML;
+        button.innerHTML = '<svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>';
+        setTimeout(() => {
+          button.innerHTML = originalHTML;
+        }, 2000);
+      });
+    }
   </script>
 </body>
 

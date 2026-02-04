@@ -7,6 +7,15 @@ description: Run claude-mem using Docker
 
 Run claude-mem in a container for easy deployment and isolation.
 
+<Warning>
+**Host Requirement:** Even when running the worker in Docker, you must have **bun** installed on your host machine. The Claude Code plugin hooks run locally and require bun to function.
+
+```bash
+# Install bun on the host
+curl -fsSL https://bun.sh/install | bash
+```
+</Warning>
+
 ## Quick Start
 
 ```bash
