@@ -19,6 +19,20 @@ docker compose --profile ollama up -d
 docker exec claude-mem-ollama ollama pull llama3.2:3b
 ```
 
+## Host Requirements
+
+While the worker runs in Docker, **the Claude Code plugin hooks run on your host machine** and require:
+
+- **Bun**: JavaScript runtime for hook execution
+
+```bash
+# Install bun on the host
+curl -fsSL https://bun.sh/install | bash
+source ~/.bashrc
+```
+
+Without bun installed on the host, hooks will fail silently and no observations will be captured, even though the worker API responds correctly.
+
 ## Pre-built vs Build from Source
 
 **Default: Pull pre-built images** (fastest)
