@@ -263,12 +263,24 @@ export interface SearchFilters {
   dateRange?: DateRange;
 }
 
+/**
+ * Visibility filter options for multi-agent access control
+ */
+export interface VisibilityFilterOptions {
+  /** Agent ID making the request (e.g., 'alice@host') */
+  agentId?: string;
+  /** Department of the requesting agent (resolved from AgentService if not provided) */
+  agentDepartment?: string;
+}
+
 export interface SearchOptions extends SearchFilters {
   limit?: number;
   offset?: number;
   orderBy?: 'relevance' | 'date_desc' | 'date_asc';
   /** When true, treats filePath as a folder and only matches direct children (not descendants) */
   isFolder?: boolean;
+  /** Visibility filtering for multi-agent access control */
+  visibility?: VisibilityFilterOptions;
 }
 
 export interface ObservationSearchResult extends ObservationRow {

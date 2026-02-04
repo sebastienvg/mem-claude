@@ -1,0 +1,330 @@
+---
+title: "API Reference"
+description: "HTTP API endpoints for claude-mem worker service"
+---
+
+# API Reference
+
+The claude-mem worker service exposes HTTP endpoints on port 37777 (configurable via `CLAUDE_MEM_WORKER_PORT`).
+
+## Agent Endpoints
+
+### Register Agent
+
+`POST /api/agents/register`
+
+Register a new agent or update an existing one. New agents receive an API key.
+
+**Request:**
+```json
+{
+  "id": "user@host",
+  "department": "engineering",
+  "permissions": "read,write"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | Yes | Agent ID in `user@host` format |
+| `department` | string | Yes | Department for visibility control |
+| `permissions` | string | No | Comma-separated permissions (default: `read,write`) |
+
+**Response (new agent):**
+```json
+{
+  "success": true,
+  "agent": {
+    "id": "user@host",
+    "department": "engineering",
+    "permissions": "read,write",
+    "verified": false,
+    "created_at": "2025-02-03T12:00:00.000Z"
+  },
+  "apiKey": "cm_..."
+}
+```
+
+**Response (existing agent):**
+```json
+{
+  "success": true,
+  "agent": {
+    "id": "user@host",
+    "department": "engineering",
+    "permissions": "read,write",
+    "verified": true,
+    "last_seen_at": "2025-02-03T12:00:00.000Z"
+  }
+}
+```
+
+<Note>
+  The API key is only returned once during initial registration. Existing agents receive an updated `last_seen_at` timestamp instead.
+</Note>
+
+---
+
+### Verify Agent
+
+`POST /api/agents/verify`
+
+Verify an agent's API key. Sets the `verified` flag to true on success.
+
+**Request:**
+```json
+{
+  "id": "user@host",
+  "apiKey": "cm_..."
+}
+```
+
+**Response (success):**
+```json
+{
+  "success": true,
+  "verified": true
+}
+```
+
+**Response (failure):**
+```json
+{
+  "success": false,
+  "error": "UNAUTHORIZED",
+  "message": "Invalid API key"
+}
+```
+
+---
+
+### Rotate API Key
+
+`POST /api/agents/rotate-key`
+
+**Requires authentication.**
+
+Generate a new API key, invalidating the old one. Resets the `verified` flag.
+
+**Headers:**
+```
+Authorization: Bearer cm_...
+```
+
+**Request (optional):**
+```json
+{
+  "expiryDays": 30
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `expiryDays` | number | No | Custom expiration (default: 90 days) |
+
+**Response:**
+```json
+{
+  "success": true,
+  "apiKey": "cm_...",
+  "expiresAt": "2025-05-03T12:00:00.000Z"
+}
+```
+
+---
+
+### Revoke API Key
+
+`POST /api/agents/revoke`
+
+**Requires authentication.**
+
+Permanently revoke the current API key. The agent will need to re-register to receive a new key.
+
+**Headers:**
+```
+Authorization: Bearer cm_...
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "API key revoked"
+}
+```
+
+---
+
+### Get Self Info
+
+`GET /api/agents/me`
+
+**Requires authentication.**
+
+Get information about the authenticated agent.
+
+**Headers:**
+```
+Authorization: Bearer cm_...
+```
+
+**Response:**
+```json
+{
+  "agent": {
+    "id": "user@host",
+    "department": "engineering",
+    "permissions": "read,write",
+    "verified": true,
+    "created_at": "2025-02-03T12:00:00.000Z",
+    "last_seen_at": "2025-02-03T14:30:00.000Z",
+    "expires_at": "2025-05-03T12:00:00.000Z",
+    "days_until_expiry": 89
+  }
+}
+```
+
+---
+
+## Error Responses
+
+All errors return JSON with consistent structure:
+
+```json
+{
+  "success": false,
+  "error": "ERROR_CODE",
+  "message": "Human readable message"
+}
+```
+
+### Error Codes
+
+| Code | HTTP Status | Description |
+|------|-------------|-------------|
+| `UNAUTHORIZED` | 401 | Missing or invalid API key |
+| `FORBIDDEN` | 403 | Agent not verified or lacks permission |
+| `TOO_MANY_REQUESTS` | 429 | Rate limited or agent locked out |
+| `INVALID_ID_FORMAT` | 400 | Agent ID does not match `user@host` pattern |
+| `BAD_REQUEST` | 400 | Missing required fields |
+| `NOT_FOUND` | 404 | Agent or resource not found |
+| `INTERNAL_ERROR` | 500 | Server error |
+
+### Lockout Response
+
+When an agent is locked due to failed authentication attempts:
+
+```json
+{
+  "success": false,
+  "error": "TOO_MANY_REQUESTS",
+  "message": "Agent locked until 2025-02-03T12:05:00.000Z",
+  "lockedUntil": "2025-02-03T12:05:00.000Z"
+}
+```
+
+---
+
+## Search Endpoints
+
+These endpoints are also available for querying observations and sessions. See the worker service for full details.
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/search` | GET | Search observations by keyword |
+| `/api/timeline` | GET | Get timeline of observations |
+| `/api/observations` | GET | List recent observations |
+| `/api/observations/:id` | GET | Get single observation |
+| `/api/sessions` | GET | List sessions |
+| `/api/sessions/:id` | GET | Get session details |
+| `/api/summaries` | GET | List summaries |
+| `/api/stats` | GET | Get database statistics |
+| `/health` | GET | Health check |
+
+---
+
+## Authentication
+
+### Bearer Token
+
+Protected endpoints require the `Authorization` header:
+
+```
+Authorization: Bearer cm_abc123...
+```
+
+### API Key Format
+
+Claude-mem API keys follow this format:
+- Prefix: `cm_`
+- Payload: 24 random bytes encoded as base64url
+- Example: `cm_dGhpcyBpcyBhIHRlc3Qga2V5IQ`
+
+### Security Notes
+
+- Keys are hashed with SHA-256 before storage
+- First 12 characters are indexed for O(1) lookup
+- Keys expire after 90 days by default
+- 5 failed attempts trigger a 5-minute lockout
+
+---
+
+## Rate Limiting
+
+The worker service implements rate limiting:
+
+| Endpoint Type | Limit |
+|---------------|-------|
+| Authentication | 20 requests / 15 minutes / IP |
+| General API | 100 requests / minute / IP |
+
+Exceeded limits return HTTP 429 with a `Retry-After` header.
+
+---
+
+## Examples
+
+### Full Registration Flow
+
+```bash
+# 1. Register agent
+RESPONSE=$(curl -s -X POST http://localhost:37777/api/agents/register \
+  -H "Content-Type: application/json" \
+  -d '{"id": "dev@workstation", "department": "engineering"}')
+
+API_KEY=$(echo $RESPONSE | jq -r '.apiKey')
+echo "API Key: $API_KEY"
+
+# 2. Verify the key
+curl -s -X POST http://localhost:37777/api/agents/verify \
+  -H "Content-Type: application/json" \
+  -d "{\"id\": \"dev@workstation\", \"apiKey\": \"$API_KEY\"}"
+
+# 3. Use authenticated endpoints
+curl -s http://localhost:37777/api/agents/me \
+  -H "Authorization: Bearer $API_KEY"
+
+# 4. Rotate key before expiration
+NEW_RESPONSE=$(curl -s -X POST http://localhost:37777/api/agents/rotate-key \
+  -H "Authorization: Bearer $API_KEY")
+
+NEW_KEY=$(echo $NEW_RESPONSE | jq -r '.apiKey')
+echo "New API Key: $NEW_KEY"
+```
+
+### Checking Key Expiration
+
+```bash
+# Get days until expiration
+curl -s http://localhost:37777/api/agents/me \
+  -H "Authorization: Bearer $API_KEY" | jq '.agent.days_until_expiry'
+```
+
+---
+
+## Next Steps
+
+- [Multi-Agent Architecture](/multi-agent) - Visibility and security concepts
+- [Configuration](/configuration) - All settings reference
+- [Troubleshooting](/troubleshooting) - Common issues

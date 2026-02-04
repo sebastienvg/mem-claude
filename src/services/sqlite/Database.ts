@@ -233,3 +233,4 @@ export * from './Prompts.js';
 export * from './Timeline.js';
 export * from './Import.js';
 export * from './transactions.js';
+export * from './project-aliases.js';
