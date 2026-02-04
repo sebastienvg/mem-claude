@@ -31,6 +31,7 @@ export class ViewerRoutes extends BaseRouteHandler {
 
     app.get('/health', this.handleHealth.bind(this));
     app.get('/', this.handleViewerUI.bind(this));
+    app.get('/howto', this.handleHowToUI.bind(this));
     app.get('/stream', this.handleSSEStream.bind(this));
   }
 
@@ -60,6 +61,29 @@ export class ViewerRoutes extends BaseRouteHandler {
     }
 
     const html = readFileSync(viewerPath, 'utf-8');
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  });
+
+  /**
+   * Serve how-to guide UI
+   */
+  private handleHowToUI = this.wrapHandler((req: Request, res: Response): void => {
+    const packageRoot = getPackageRoot();
+
+    // Try cache structure first, then marketplace structure
+    const howToPaths = [
+      path.join(packageRoot, 'ui', 'howto.html'),
+      path.join(packageRoot, 'plugin', 'ui', 'howto.html')
+    ];
+
+    const howToPath = howToPaths.find(p => existsSync(p));
+
+    if (!howToPath) {
+      throw new Error('How-to UI not found at any expected location');
+    }
+
+    const html = readFileSync(howToPath, 'utf-8');
     res.setHeader('Content-Type', 'text/html');
     res.send(html);
   });

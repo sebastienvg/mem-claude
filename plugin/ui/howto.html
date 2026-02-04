@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How to Use Claude-Mem</title>
+  <link rel="icon" type="image/webp" href="claude-mem-logomark.webp">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            cream: {
+              50: '#fdfcfa',
+              100: '#f9f7f3',
+              200: '#efebe4',
+              300: '#e5dfd5',
+            },
+            warm: {
+              600: '#5a5248',
+              700: '#2b2520',
+              800: '#1a1916',
+              900: '#141210',
+            },
+            accent: {
+              blue: '#0969da',
+              purple: '#8250df',
+              amber: '#9a6700',
+              green: '#1a7f37',
+              red: '#d1242f',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['Monaco', 'Menlo', 'Consolas', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @font-face {
+      font-family: 'Monaspace Radon';
+      src: url('assets/fonts/monaspace-radon-var.woff2') format('woff2-variations');
+      font-weight: 200 900;
+      font-display: swap;
+    }
+
+    .logo-text {
+      font-family: 'Monaspace Radon', monospace;
+      font-weight: 100;
+      letter-spacing: -0.03em;
+    }
+
+    /* Smooth scroll */
+    html {
+      scroll-behavior: smooth;
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #d1d5da;
+      border-radius: 4px;
+    }
+
+    .dark ::-webkit-scrollbar-thumb {
+      background: #3a3834;
+    }
+
+    /* Gradient text */
+    .gradient-text {
+      background: linear-gradient(135deg, #0969da 0%, #8250df 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* Card hover effect */
+    .card-hover {
+      transition: all 0.2s ease;
+    }
+
+    .card-hover:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+    }
+
+    .dark .card-hover:hover {
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Code block styling */
+    .code-block {
+      background: linear-gradient(135deg, #1a1916 0%, #252320 100%);
+    }
+
+    /* Type badges */
+    .badge-bugfix { background: rgba(209, 36, 47, 0.12); color: #d1242f; }
+    .badge-feature { background: rgba(130, 80, 223, 0.12); color: #8250df; }
+    .badge-refactor { background: rgba(9, 105, 218, 0.12); color: #0969da; }
+    .badge-change { background: rgba(26, 127, 55, 0.12); color: #1a7f37; }
+    .badge-discovery { background: rgba(9, 105, 218, 0.12); color: #0550ae; }
+    .badge-decision { background: rgba(154, 103, 0, 0.12); color: #9a6700; }
+
+    .dark .badge-bugfix { background: rgba(231, 72, 86, 0.15); color: #e74856; }
+    .dark .badge-feature { background: rgba(142, 108, 219, 0.15); color: #8e6cdb; }
+    .dark .badge-refactor { background: rgba(88, 166, 255, 0.15); color: #58a6ff; }
+    .dark .badge-change { background: rgba(22, 198, 12, 0.15); color: #16c60c; }
+    .dark .badge-discovery { background: rgba(121, 184, 255, 0.15); color: #79b8ff; }
+    .dark .badge-decision { background: rgba(212, 184, 136, 0.15); color: #d4b888; }
+
+    /* Animate on scroll */
+    .fade-in {
+      animation: fadeIn 0.5s ease-out forwards;
+      opacity: 0;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Stagger animations */
+    .fade-in:nth-child(1) { animation-delay: 0.1s; }
+    .fade-in:nth-child(2) { animation-delay: 0.2s; }
+    .fade-in:nth-child(3) { animation-delay: 0.3s; }
+    .fade-in:nth-child(4) { animation-delay: 0.4s; }
+    .fade-in:nth-child(5) { animation-delay: 0.5s; }
+    .fade-in:nth-child(6) { animation-delay: 0.6s; }
+  </style>
+</head>
+
+<body class="bg-cream-100 dark:bg-warm-800 text-warm-700 dark:text-cream-200 min-h-screen">
+  <!-- Header -->
+  <header class="sticky top-0 z-50 bg-cream-100/80 dark:bg-warm-800/80 backdrop-blur-lg border-b border-cream-300 dark:border-warm-600/30">
+    <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-3">
+        <img src="claude-mem-logomark.webp" alt="claude-mem" class="h-8 w-auto">
+        <span class="logo-text text-xl text-warm-700 dark:text-cream-200">claude-mem</span>
+      </a>
+      <div class="flex items-center gap-4">
+        <a href="https://docs.claude-mem.ai" target="_blank"
+           class="text-sm font-medium text-warm-600 dark:text-cream-300 hover:text-accent-blue dark:hover:text-accent-blue transition-colors">
+          Docs
+        </a>
+        <a href="https://github.com/thedotmack/claude-mem" target="_blank"
+           class="text-sm font-medium text-warm-600 dark:text-cream-300 hover:text-accent-blue dark:hover:text-accent-blue transition-colors">
+          GitHub
+        </a>
+        <button id="theme-toggle"
+                class="p-2 rounded-lg bg-cream-200 dark:bg-warm-700 hover:bg-cream-300 dark:hover:bg-warm-600 transition-colors">
+          <svg class="w-5 h-5 hidden dark:block" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/>
+          </svg>
+          <svg class="w-5 h-5 block dark:hidden" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-6 py-12">
+    <!-- Hero Section -->
+    <section class="text-center mb-16 fade-in">
+      <h1 class="text-4xl md:text-5xl font-bold mb-4">
+        <span class="gradient-text">How to Use Claude-Mem</span>
+      </h1>
+      <p class="text-lg text-warm-600 dark:text-cream-300 max-w-2xl mx-auto">
+        Persistent memory that makes Claude smarter across sessions.
+        Just talk naturally - Claude remembers your projects, decisions, and context.
+      </p>
+    </section>
+
+    <!-- How It Works -->
+    <section class="mb-16 fade-in">
+      <h2 class="text-2xl font-bold mb-6 flex items-center gap-3">
+        <span class="w-8 h-8 rounded-lg bg-accent-blue/10 text-accent-blue flex items-center justify-center text-sm font-mono">1</span>
+        How It Works
+      </h2>
+      <div class="bg-white dark:bg-warm-700/50 rounded-2xl border border-cream-300 dark:border-warm-600/30 p-6 card-hover">
+        <div class="code-block rounded-xl p-6 font-mono text-sm text-cream-200 overflow-x-auto">
+          <pre class="whitespace-pre"><span class="text-cream-300/60">Your Session</span>
+    |
+    |--&gt; <span class="text-accent-blue">Tool Usage</span> (Read, Write, Bash, etc.)
+    |         |
+    |         v
+    |    <span class="text-accent-purple">Hooks capture observations</span>
+    |         |
+    |         v
+    |    <span class="text-amber-400">Worker compresses & stores</span>
+    |         |
+    |         v
+    +--&gt; <span class="text-green-400">SQLite + Chroma</span> (semantic search)
+
+<span class="text-cream-300/60">Next Session</span>
+    |
+    |--&gt; Context auto-injected from last 10 sessions
+    +--&gt; MCP tools available for deeper searches</pre>
+        </div>
+        <p class="mt-4 text-warm-600 dark:text-cream-300">
+          <strong>Automatic:</strong> Every tool call is captured, compressed into an "observation", and stored.
+          Next session, relevant context is injected automatically.
+        </p>
+      </div>
+    </section>
+
+    <!-- Asking Claude -->
+    <section class="mb-16 fade-in">
+      <h2 class="text-2xl font-bold mb-6 flex items-center gap-3">
+        <span class="w-8 h-8 rounded-lg bg-accent-purple/10 text-accent-purple flex items-center justify-center text-sm font-mono">2</span>
+        Asking Claude to Remember / Research
+      </h2>
+
+      <div class="grid md:grid-cols-2 gap-4 mb-6">
+        <div class="bg-white dark:bg-warm-700/50 rounded-xl border border-cream-300 dark:border-warm-600/30 p-5 card-hover">
+          <h3 class="font-semibold mb-3 text-accent-blue">Find Past Work</h3>
+          <p class="text-sm text-warm-600 dark:text-cream-300 font-mono bg-cream-200 dark:bg-warm-800 rounded-lg px-3 py-2">
+            "What have we done on authentication?"
+          </p>
+        </div>
+        <div class="bg-white dark:bg-warm-700/50 rounded-xl border border-cream-300 dark:border-warm-600/30 p-5 card-hover">
+          <h3 class="font-semibold mb-3 text-accent-red">Bug History</h3>
+          <p class="text-sm text-warm-600 dark:text-cream-300 font-mono bg-cream-200 dark:bg-warm-800 rounded-lg px-3 py-2">
+            "Show me bugs we fixed last week"
+          </p>
+        </div>
+        <div class="bg-white dark:bg-warm-700/50 rounded-xl border border-cream-300 dark:border-warm-600/30 p-5 card-hover">
+          <h3 class="font-semibold mb-3 text-amber-600 dark:text-amber-400">Decisions</h3>
+          <p class="text-sm text-warm-600 dark:text-cream-300 font-mono bg-cream-200 dark:bg-warm-800 rounded-lg px-3 py-2">
+            "Why did we choose JWT over sessions?"
+          </p>
+        </div>
+        <div class="bg-white dark:bg-warm-700/50 rounded-xl border border-cream-300 dark:border-warm-600/30 p-5 card-hover">
+          <h3 class="font-semibold mb-3 text-green-600 dark:text-green-400">File History</h3>
+          <p class="text-sm text-warm-600 dark:text-cream-300 font-mono bg-cream-200 dark:bg-warm-800 rounded-lg px-3 py-2">
+            "What changes were made to worker-service.ts?"
+          </p>
+        </div>
+      </div>
+
+      <div class="bg-cream-200/50 dark:bg-warm-900/50 rounded-xl p-5 border border-cream-300 dark:border-warm-600/30">
+        <h3 class="font-semibold mb-3">More Examples</h3>
+        <ul class="space-y-2 text-sm text-warm-600 dark:text-cream-300">
+          <li class="flex items-start gap-2">
+            <span class="text-accent-blue mt-0.5">-></span>
+            <span>"What did we work on yesterday?"</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-accent-blue mt-0.5">-></span>
+            <span>"Search authentication bugs <strong>in project api-backend</strong>"</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-accent-blue mt-0.5">-></span>
+            <span>"What happened <strong>between January 1 and January 15</strong>?"</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Observation Types -->
+    <section class="mb-16 fade-in">
+      <h2 class="text-2xl font-bold mb-6 flex items-center gap-3">
+        <span class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center text-sm font-mono">3</span>
+        Observation Types
+      </h2>
+      <p class="text-warm-600 dark:text-cream-300 mb-4">
+        Claude-mem automatically categorizes your work. Filter by type when searching:
+      </p>
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div class="flex items-center gap-3 bg-white dark:bg-warm-700/50 rounded-lg border border-cream-300 dark:border-warm-600/30 p-4">
+          <span class="badge-bugfix px-2 py-1 rounded text-xs font-semibold uppercase">bugfix</span>
+          <span class="text-2xl">🔴</span>
+        </div>
+        <div class="flex items-center gap-3 bg-white dark:bg-warm-700/50 rounded-lg border border-cream-300 dark:border-warm-600/30 p-4">
+          <span class="badge-feature px-2 py-1 rounded text-xs font-semibold uppercase">feature</span>
+          <span class="text-2xl">🟣</span>
+        </div>
+        <div class="flex items-center gap-3 bg-white dark:bg-warm-700/50 rounded-lg border border-cream-300 dark:border-warm-600/30 p-4">
+          <span class="badge-refactor px-2 py-1 rounded text-xs font-semibold uppercase">refactor</span>
+          <span class="text-2xl">🔄</span>
+        </div>
+        <div class="flex items-center gap-3 bg-white dark:bg-warm-700/50 rounded-lg border border-cream-300 dark:border-warm-600/30 p-4">
+          <span class="badge-change px-2 py-1 rounded text-xs font-semibold uppercase">change</span>
+          <span class="text-2xl">✅</span>
+        </div>
+        <div class="flex items-center gap-3 bg-white dark:bg-warm-700/50 rounded-lg border border-cream-300 dark:border-warm-600/30 p-4">
+          <span class="badge-discovery px-2 py-1 rounded text-xs font-semibold uppercase">discovery</span>
+          <span class="text-2xl">🔵</span>
+        </div>
+        <div class="flex items-center gap-3 bg-white dark:bg-warm-700/50 rounded-lg border border-cream-300 dark:border-warm-600/30 p-4">
+          <span class="badge-decision px-2 py-1 rounded text-xs font-semibold uppercase">decision</span>
+          <span class="text-2xl">⚖️</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Privacy Control -->
+    <section class="mb-16 fade-in">
+      <h2 class="text-2xl font-bold mb-6 flex items-center gap-3">
+        <span class="w-8 h-8 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 flex items-center justify-center text-sm font-mono">4</span>
+        Privacy Control
+      </h2>
+      <div class="bg-white dark:bg-warm-700/50 rounded-2xl border border-cream-300 dark:border-warm-600/30 p-6 card-hover">
+        <p class="mb-4 text-warm-600 dark:text-cream-300">
+          Wrap content in <code class="bg-cream-200 dark:bg-warm-800 px-2 py-0.5 rounded font-mono text-sm">&lt;private&gt;</code> tags to exclude from storage:
+        </p>
+        <div class="code-block rounded-xl p-5 font-mono text-sm text-cream-200">
+          <pre><span class="text-red-400">&lt;private&gt;</span>
+<span class="text-cream-300/70">API_KEY=sk-proj-abc123</span>
+<span class="text-cream-300/70">Database host: internal-db.company.com</span>
+<span class="text-red-400">&lt;/private&gt;</span>
+
+<span class="text-cream-200">Help me debug this connection error</span></pre>
+        </div>
+        <p class="mt-4 text-sm text-warm-600 dark:text-cream-300">
+          <strong>Claude sees it</strong> during the session, but it <strong>won't be stored</strong> in memory.
+        </p>
+      </div>
+    </section>
+
+    <!-- Search Query Syntax -->
+    <section class="mb-16 fade-in">
+      <h2 class="text-2xl font-bold mb-6 flex items-center gap-3">
+        <span class="w-8 h-8 rounded-lg bg-green-500/10 text-green-600 dark:text-green-400 flex items-center justify-center text-sm font-mono">5</span>
+        Advanced Search Syntax
+      </h2>
+      <div class="bg-white dark:bg-warm-700/50 rounded-2xl border border-cream-300 dark:border-warm-600/30 p-6 card-hover">
+        <div class="space-y-4">
+          <div>
+            <h4 class="font-semibold text-sm text-warm-600 dark:text-cream-300 mb-2">Boolean Operators</h4>
+            <div class="code-block rounded-lg p-4 font-mono text-sm text-cream-200 space-y-1">
+              <div>"authentication <span class="text-amber-400">AND</span> JWT"</div>
+              <div>"OAuth <span class="text-amber-400">OR</span> session"</div>
+              <div>"security <span class="text-amber-400">NOT</span> deprecated"</div>
+            </div>
+          </div>
+          <div>
+            <h4 class="font-semibold text-sm text-warm-600 dark:text-cream-300 mb-2">Exact Phrase</h4>
+            <div class="code-block rounded-lg p-4 font-mono text-sm text-cream-200">
+              <span class="text-green-400">'"database migration"'</span>
+            </div>
+          </div>
+          <div>
+            <h4 class="font-semibold text-sm text-warm-600 dark:text-cream-300 mb-2">Field-Specific</h4>
+            <div class="code-block rounded-lg p-4 font-mono text-sm text-cream-200 space-y-1">
+              <div>"<span class="text-accent-blue">title:</span>authentication"</div>
+              <div>"<span class="text-accent-blue">concepts:</span>security"</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- What Gets Stored -->
+    <section class="mb-16 fade-in">
+      <h2 class="text-2xl font-bold mb-6 flex items-center gap-3">
+        <span class="w-8 h-8 rounded-lg bg-accent-blue/10 text-accent-blue flex items-center justify-center text-sm font-mono">6</span>
+        What Gets Stored
+      </h2>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-200 dark:border-green-800/30 p-5">
+          <h3 class="font-semibold text-green-700 dark:text-green-400 mb-3 flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            Captured
+          </h3>
+          <ul class="space-y-2 text-sm text-green-700 dark:text-green-300">
+            <li>- Files read / written</li>
+            <li>- Tool inputs / outputs</li>
+            <li>- Decisions made</li>
+            <li>- Bug fixes & features</li>
+            <li>- Key learnings</li>
+          </ul>
+        </div>
+        <div class="bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800/30 p-5">
+          <h3 class="font-semibold text-red-700 dark:text-red-400 mb-3 flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+            NOT Captured
+          </h3>
+          <ul class="space-y-2 text-sm text-red-700 dark:text-red-300">
+            <li>- Your full prompts (only summaries)</li>
+            <li>- Claude's full responses</li>
+            <li>- Anything in &lt;private&gt; tags</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Quick Reference -->
+    <section class="mb-16 fade-in">
+      <h2 class="text-2xl font-bold mb-6">Quick Reference</h2>
+      <div class="bg-white dark:bg-warm-700/50 rounded-2xl border border-cream-300 dark:border-warm-600/30 overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-cream-200 dark:bg-warm-800">
+            <tr>
+              <th class="text-left px-5 py-3 font-semibold">Action</th>
+              <th class="text-left px-5 py-3 font-semibold">How</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-cream-200 dark:divide-warm-600/30">
+            <tr>
+              <td class="px-5 py-3 text-warm-600 dark:text-cream-300">Search memories</td>
+              <td class="px-5 py-3 font-mono text-sm">"What do we know about X?"</td>
+            </tr>
+            <tr>
+              <td class="px-5 py-3 text-warm-600 dark:text-cream-300">Filter by type</td>
+              <td class="px-5 py-3 font-mono text-sm">"Show bugfixes for Y"</td>
+            </tr>
+            <tr>
+              <td class="px-5 py-3 text-warm-600 dark:text-cream-300">Filter by project</td>
+              <td class="px-5 py-3 font-mono text-sm">"In project Z, what..."</td>
+            </tr>
+            <tr>
+              <td class="px-5 py-3 text-warm-600 dark:text-cream-300">Filter by date</td>
+              <td class="px-5 py-3 font-mono text-sm">"Last week / this month / between dates"</td>
+            </tr>
+            <tr>
+              <td class="px-5 py-3 text-warm-600 dark:text-cream-300">Keep private</td>
+              <td class="px-5 py-3 font-mono text-sm">&lt;private&gt;...&lt;/private&gt;</td>
+            </tr>
+            <tr>
+              <td class="px-5 py-3 text-warm-600 dark:text-cream-300">Deep dive</td>
+              <td class="px-5 py-3 font-mono text-sm">"Get full details on observation #123"</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="text-center py-12 fade-in">
+      <div class="bg-gradient-to-r from-accent-blue/10 to-accent-purple/10 dark:from-accent-blue/20 dark:to-accent-purple/20 rounded-2xl p-8 border border-accent-blue/20">
+        <h2 class="text-2xl font-bold mb-3">Ready to explore your memory?</h2>
+        <p class="text-warm-600 dark:text-cream-300 mb-6">
+          View real-time observations in the Memory Stream viewer.
+        </p>
+        <a href="/"
+           class="inline-flex items-center gap-2 bg-accent-blue hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+          </svg>
+          Open Memory Viewer
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-cream-300 dark:border-warm-600/30 py-8">
+    <div class="max-w-5xl mx-auto px-6 text-center text-sm text-warm-600 dark:text-cream-300">
+      <p>claude-mem - Persistent memory for Claude Code</p>
+      <p class="mt-2">
+        <a href="https://docs.claude-mem.ai" class="hover:text-accent-blue transition-colors">Documentation</a>
+        <span class="mx-2">|</span>
+        <a href="https://github.com/thedotmack/claude-mem" class="hover:text-accent-blue transition-colors">GitHub</a>
+        <span class="mx-2">|</span>
+        <a href="https://discord.gg/claudemem" class="hover:text-accent-blue transition-colors">Discord</a>
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    // Theme toggle
+    const themeToggle = document.getElementById('theme-toggle');
+    const html = document.documentElement;
+
+    // Check for saved theme or system preference
+    if (localStorage.getItem('theme') === 'dark' ||
+        (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      html.classList.add('dark');
+    }
+
+    themeToggle.addEventListener('click', () => {
+      html.classList.toggle('dark');
+      localStorage.setItem('theme', html.classList.contains('dark') ? 'dark' : 'light');
+    });
+
+    // Intersection Observer for fade-in animations
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.style.animationPlayState = 'running';
+        }
+      });
+    }, { threshold: 0.1 });
+
+    document.querySelectorAll('.fade-in').forEach(el => {
+      el.style.animationPlayState = 'paused';
+      observer.observe(el);
+    });
+  </script>
+</body>
+
+</html>
