@@ -47,6 +47,8 @@ export class SessionStore {
     this.renameSessionIdColumns();
     this.repairSessionIdColumnRename();
     this.addFailedAtEpochColumn();
+    this.createMultiAgentColumns();
+    this.createProjectAliasesTable();
     this.createConversationHistoryTable();
   }
 
@@ -644,6 +646,115 @@ export class SessionStore {
     }
 
     this.db.prepare('INSERT OR IGNORE INTO schema_versions (version, applied_at) VALUES (?, ?)').run(20, new Date().toISOString());
+  }
+
+  /**
+   * Add agent metadata columns to observations and session_summaries (migration 21)
+   * Supports multi-agent visibility controls
+   */
+  private createMultiAgentColumns(): void {
+    const applied = this.db.prepare('SELECT version FROM schema_versions WHERE version = ?').get(21) as SchemaVersion | undefined;
+    if (applied) return;
+
+    logger.debug('DB', 'Adding multi-agent columns');
+
+    // Create agents table if not exists
+    const agentsTables = this.db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='agents'").all() as TableNameRow[];
+    if (agentsTables.length === 0) {
+      this.db.run(`
+        CREATE TABLE agents (
+          id TEXT PRIMARY KEY,
+          department TEXT NOT NULL DEFAULT 'default',
+          permissions TEXT NOT NULL DEFAULT 'read,write',
+          api_key_prefix TEXT,
+          api_key_hash TEXT UNIQUE,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          created_at_epoch INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+          last_seen_at TEXT,
+          last_seen_at_epoch INTEGER,
+          verified INTEGER NOT NULL DEFAULT 0,
+          expires_at TEXT,
+          expires_at_epoch INTEGER,
+          failed_attempts INTEGER NOT NULL DEFAULT 0,
+          locked_until_epoch INTEGER
+        )
+      `);
+      this.db.run('CREATE INDEX IF NOT EXISTS idx_agents_department ON agents(department)');
+      this.db.run('CREATE INDEX IF NOT EXISTS idx_agents_verified ON agents(verified)');
+      this.db.run('CREATE INDEX IF NOT EXISTS idx_agents_api_key_prefix ON agents(api_key_prefix)');
+    }
+
+    // Create audit_log table if not exists
+    const auditTables = this.db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='audit_log'").all() as TableNameRow[];
+    if (auditTables.length === 0) {
+      this.db.run(`
+        CREATE TABLE audit_log (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          agent_id TEXT NOT NULL,
+          action TEXT NOT NULL,
+          resource_type TEXT,
+          resource_id TEXT,
+          details TEXT,
+          ip_address TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          created_at_epoch INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )
+      `);
+      this.db.run('CREATE INDEX IF NOT EXISTS idx_audit_log_agent ON audit_log(agent_id)');
+      this.db.run('CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action)');
+      this.db.run('CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at_epoch DESC)');
+    }
+
+    // Add columns to observations
+    const obsInfo = this.db.query('PRAGMA table_info(observations)').all() as TableColumnInfo[];
+    if (!obsInfo.some(col => col.name === 'agent')) {
+      this.db.run("ALTER TABLE observations ADD COLUMN agent TEXT DEFAULT 'legacy'");
+      this.db.run("ALTER TABLE observations ADD COLUMN department TEXT DEFAULT 'default'");
+      this.db.run("ALTER TABLE observations ADD COLUMN visibility TEXT DEFAULT 'project'");
+      this.db.run('CREATE INDEX IF NOT EXISTS idx_observations_agent ON observations(agent)');
+      this.db.run('CREATE INDEX IF NOT EXISTS idx_observations_department ON observations(department)');
+      this.db.run('CREATE INDEX IF NOT EXISTS idx_observations_visibility ON observations(visibility)');
+      logger.debug('DB', 'Added agent columns to observations');
+    }
+
+    // Add columns to session_summaries
+    const sumInfo = this.db.query('PRAGMA table_info(session_summaries)').all() as TableColumnInfo[];
+    if (!sumInfo.some(col => col.name === 'agent')) {
+      this.db.run("ALTER TABLE session_summaries ADD COLUMN agent TEXT DEFAULT 'legacy'");
+      this.db.run("ALTER TABLE session_summaries ADD COLUMN department TEXT DEFAULT 'default'");
+      this.db.run("ALTER TABLE session_summaries ADD COLUMN visibility TEXT DEFAULT 'project'");
+      logger.debug('DB', 'Added agent columns to session_summaries');
+    }
+
+    this.db.prepare('INSERT OR IGNORE INTO schema_versions (version, applied_at) VALUES (?, ?)').run(21, new Date().toISOString());
+    logger.debug('DB', 'Multi-agent columns migration completed');
+  }
+
+  /**
+   * Create project_aliases table for git-based project identity (migration 22)
+   */
+  private createProjectAliasesTable(): void {
+    const applied = this.db.prepare('SELECT version FROM schema_versions WHERE version = ?').get(22) as SchemaVersion | undefined;
+    if (applied) return;
+
+    const tables = this.db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='project_aliases'").all() as TableNameRow[];
+    if (tables.length === 0) {
+      this.db.run(`
+        CREATE TABLE IF NOT EXISTS project_aliases (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          old_project TEXT NOT NULL,
+          new_project TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          created_at_epoch INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+          UNIQUE(old_project, new_project)
+        )
+      `);
+      this.db.run('CREATE INDEX IF NOT EXISTS idx_project_aliases_new_project ON project_aliases(new_project)');
+      this.db.run('CREATE INDEX IF NOT EXISTS idx_project_aliases_created_at_epoch ON project_aliases(created_at_epoch)');
+      logger.debug('DB', 'Created project_aliases table');
+    }
+
+    this.db.prepare('INSERT OR IGNORE INTO schema_versions (version, applied_at) VALUES (?, ?)').run(22, new Date().toISOString());
   }
 
   /**

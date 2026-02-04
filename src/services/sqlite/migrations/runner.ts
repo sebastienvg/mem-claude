@@ -707,74 +707,126 @@ export class MigrationRunner {
       logger.debug('DB', 'Created audit_log table');
     }
 
-    // Add agent metadata columns to observations with CHECK constraint on visibility
-    // SQLite doesn't support ALTER TABLE ADD COLUMN with CHECK, so we recreate the table
+    // Add agent metadata columns to observations
+    // Try table recreation first (for CHECK constraint), fall back to ALTER TABLE if it fails
     const observationsInfo = this.db.query('PRAGMA table_info(observations)').all() as TableColumnInfo[];
     const obsHasAgent = observationsInfo.some(col => col.name === 'agent');
 
     if (!obsHasAgent) {
-      logger.debug('DB', 'Recreating observations table with agent metadata columns');
+      logger.debug('DB', 'Adding agent metadata columns to observations table');
 
-      this.db.run('BEGIN TRANSACTION');
+      let tableRecreationSucceeded = false;
 
-      // Create new observations table with agent metadata and visibility CHECK constraint
-      this.db.run(`
-        CREATE TABLE observations_new (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          memory_session_id TEXT NOT NULL,
-          project TEXT NOT NULL,
-          text TEXT,
-          type TEXT NOT NULL CHECK(type IN ('decision', 'bugfix', 'feature', 'refactor', 'discovery', 'change')),
-          title TEXT,
-          subtitle TEXT,
-          facts TEXT,
-          narrative TEXT,
-          concepts TEXT,
-          files_read TEXT,
-          files_modified TEXT,
-          prompt_number INTEGER,
-          discovery_tokens INTEGER DEFAULT 0,
-          agent TEXT DEFAULT 'legacy',
-          department TEXT DEFAULT 'default',
-          visibility TEXT DEFAULT 'project' CHECK(visibility IN ('private', 'department', 'project', 'public')),
-          created_at TEXT NOT NULL,
-          created_at_epoch INTEGER NOT NULL,
-          FOREIGN KEY(memory_session_id) REFERENCES sdk_sessions(memory_session_id) ON DELETE CASCADE
-        )
-      `);
+      try {
+        this.db.run('BEGIN TRANSACTION');
 
-      // Copy data from old table
-      this.db.run(`
-        INSERT INTO observations_new (
-          id, memory_session_id, project, text, type, title, subtitle, facts,
-          narrative, concepts, files_read, files_modified, prompt_number,
-          discovery_tokens, created_at, created_at_epoch
-        )
-        SELECT
-          id, memory_session_id, project, text, type, title, subtitle, facts,
-          narrative, concepts, files_read, files_modified, prompt_number,
-          discovery_tokens, created_at, created_at_epoch
-        FROM observations
-      `);
+        // Create new observations table with agent metadata and visibility CHECK constraint
+        this.db.run(`
+          CREATE TABLE observations_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            memory_session_id TEXT NOT NULL,
+            project TEXT NOT NULL,
+            text TEXT,
+            type TEXT NOT NULL CHECK(type IN ('decision', 'bugfix', 'feature', 'refactor', 'discovery', 'change')),
+            title TEXT,
+            subtitle TEXT,
+            facts TEXT,
+            narrative TEXT,
+            concepts TEXT,
+            files_read TEXT,
+            files_modified TEXT,
+            prompt_number INTEGER,
+            discovery_tokens INTEGER DEFAULT 0,
+            agent TEXT DEFAULT 'legacy',
+            department TEXT DEFAULT 'default',
+            visibility TEXT DEFAULT 'project' CHECK(visibility IN ('private', 'department', 'project', 'public')),
+            created_at TEXT NOT NULL,
+            created_at_epoch INTEGER NOT NULL,
+            FOREIGN KEY(memory_session_id) REFERENCES sdk_sessions(memory_session_id) ON DELETE CASCADE
+          )
+        `);
 
-      // Drop old table
-      this.db.run('DROP TABLE observations');
+        // Copy data from old table
+        this.db.run(`
+          INSERT INTO observations_new (
+            id, memory_session_id, project, text, type, title, subtitle, facts,
+            narrative, concepts, files_read, files_modified, prompt_number,
+            discovery_tokens, created_at, created_at_epoch
+          )
+          SELECT
+            id, memory_session_id, project, text, type, title, subtitle, facts,
+            narrative, concepts, files_read, files_modified, prompt_number,
+            discovery_tokens, created_at, created_at_epoch
+          FROM observations
+        `);
 
-      // Rename new table
-      this.db.run('ALTER TABLE observations_new RENAME TO observations');
+        // Drop old table
+        this.db.run('DROP TABLE observations');
 
-      // Recreate all indexes
-      this.db.run('CREATE INDEX idx_observations_sdk_session ON observations(memory_session_id)');
-      this.db.run('CREATE INDEX idx_observations_project ON observations(project)');
-      this.db.run('CREATE INDEX idx_observations_type ON observations(type)');
-      this.db.run('CREATE INDEX idx_observations_created ON observations(created_at_epoch DESC)');
-      this.db.run('CREATE INDEX idx_observations_agent ON observations(agent)');
-      this.db.run('CREATE INDEX idx_observations_department ON observations(department)');
-      this.db.run('CREATE INDEX idx_observations_visibility ON observations(visibility)');
+        // Rename new table
+        this.db.run('ALTER TABLE observations_new RENAME TO observations');
 
-      this.db.run('COMMIT');
+        // Recreate all indexes
+        this.db.run('CREATE INDEX idx_observations_sdk_session ON observations(memory_session_id)');
+        this.db.run('CREATE INDEX idx_observations_project ON observations(project)');
+        this.db.run('CREATE INDEX idx_observations_type ON observations(type)');
+        this.db.run('CREATE INDEX idx_observations_created ON observations(created_at_epoch DESC)');
+        this.db.run('CREATE INDEX idx_observations_agent ON observations(agent)');
+        this.db.run('CREATE INDEX idx_observations_department ON observations(department)');
+        this.db.run('CREATE INDEX idx_observations_visibility ON observations(visibility)');
 
-      logger.debug('DB', 'Added agent/department/visibility columns to observations table');
+        this.db.run('COMMIT');
+        tableRecreationSucceeded = true;
+
+        logger.debug('DB', 'Recreated observations table with agent metadata columns');
+      } catch (err) {
+        // Rollback on failure
+        try {
+          this.db.run('ROLLBACK');
+        } catch {
+          // Ignore rollback errors
+        }
+
+        // Clean up observations_new if it exists
+        try {
+          this.db.run('DROP TABLE IF EXISTS observations_new');
+        } catch {
+          // Ignore cleanup errors
+        }
+
+        logger.warn('DB', `Table recreation failed, falling back to ALTER TABLE: ${err}`);
+      }
+
+      // Fallback: use ALTER TABLE if table recreation failed
+      if (!tableRecreationSucceeded) {
+        logger.debug('DB', 'Using ALTER TABLE fallback for observations');
+
+        this.db.run("ALTER TABLE observations ADD COLUMN agent TEXT DEFAULT 'legacy'");
+        this.db.run("ALTER TABLE observations ADD COLUMN department TEXT DEFAULT 'default'");
+        this.db.run("ALTER TABLE observations ADD COLUMN visibility TEXT DEFAULT 'project'");
+
+        // Create indexes for new columns
+        try {
+          this.db.run('CREATE INDEX IF NOT EXISTS idx_observations_agent ON observations(agent)');
+          this.db.run('CREATE INDEX IF NOT EXISTS idx_observations_department ON observations(department)');
+          this.db.run('CREATE INDEX IF NOT EXISTS idx_observations_visibility ON observations(visibility)');
+        } catch {
+          // Indexes might already exist
+        }
+
+        logger.debug('DB', 'Added agent/department/visibility columns via ALTER TABLE');
+      }
+
+      // Verify columns were added
+      const verifyInfo = this.db.query('PRAGMA table_info(observations)').all() as TableColumnInfo[];
+      const hasAllColumns = ['agent', 'department', 'visibility'].every(
+        col => verifyInfo.some(c => c.name === col)
+      );
+
+      if (!hasAllColumns) {
+        logger.error('DB', 'CRITICAL: Failed to add agent metadata columns to observations table');
+        throw new Error('Migration 21 failed: observations table missing required columns');
+      }
     }
 
     // Add agent metadata columns to session_summaries
@@ -787,6 +839,17 @@ export class MigrationRunner {
       this.db.run("ALTER TABLE session_summaries ADD COLUMN visibility TEXT DEFAULT 'project'");
 
       logger.debug('DB', 'Added agent/department/visibility columns to session_summaries table');
+
+      // Verify columns were added
+      const verifySumInfo = this.db.query('PRAGMA table_info(session_summaries)').all() as TableColumnInfo[];
+      const sumHasAllColumns = ['agent', 'department', 'visibility'].every(
+        col => verifySumInfo.some(c => c.name === col)
+      );
+
+      if (!sumHasAllColumns) {
+        logger.error('DB', 'CRITICAL: Failed to add agent metadata columns to session_summaries table');
+        throw new Error('Migration 21 failed: session_summaries table missing required columns');
+      }
     }
 
     // Record migration
