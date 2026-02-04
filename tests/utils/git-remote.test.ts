@@ -1,8 +1,7 @@
 /**
  * Git Remote Utilities Tests
  *
- * Tests the git remote URL normalization and detection utilities.
- * These utilities enable project identification via git remotes.
+ * Tests for git remote URL normalization and detection.
  */
 
 import { describe, it, expect } from 'bun:test';
@@ -30,9 +29,29 @@ describe('Git Remote Utilities', () => {
       expect(result).toBe('github.com/sebastienvg/mem-claude');
     });
 
+    it('should normalize SSH URL without .git suffix', () => {
+      const result = normalizeGitUrl('git@github.com:user/repo');
+      expect(result).toBe('github.com/user/repo');
+    });
+
     it('should normalize GitHub enterprise URL with port', () => {
       const result = normalizeGitUrl('https://github.example.com:8443/org/repo.git');
       expect(result).toBe('github.example.com/org/repo');
+    });
+
+    it('should normalize GitLab URLs', () => {
+      const result = normalizeGitUrl('https://gitlab.com/group/project.git');
+      expect(result).toBe('gitlab.com/group/project');
+    });
+
+    it('should normalize Bitbucket URLs', () => {
+      const result = normalizeGitUrl('git@bitbucket.org:user/repo.git');
+      expect(result).toBe('bitbucket.org/user/repo');
+    });
+
+    it('should handle nested paths', () => {
+      const result = normalizeGitUrl('https://github.com/org/team/project.git');
+      expect(result).toBe('github.com/org/team/project');
     });
 
     it('should return null for invalid URL', () => {
@@ -44,11 +63,15 @@ describe('Git Remote Utilities', () => {
     });
 
     it('should return null for null input', () => {
-      expect(normalizeGitUrl(null as any)).toBeNull();
+      expect(normalizeGitUrl(null)).toBeNull();
     });
 
     it('should return null for undefined input', () => {
-      expect(normalizeGitUrl(undefined as any)).toBeNull();
+      expect(normalizeGitUrl(undefined)).toBeNull();
+    });
+
+    it('should return null for whitespace-only string', () => {
+      expect(normalizeGitUrl('   ')).toBeNull();
     });
   });
 
@@ -67,18 +90,36 @@ upstream\thttps://github.com/other/repo.git (push)`;
       expect(remotes[1].url).toBe('https://github.com/other/repo.git');
     });
 
+    it('should only include fetch URLs', () => {
+      const output = `origin\thttps://github.com/user/repo.git (fetch)
+origin\thttps://different.com/push/url.git (push)`;
+
+      const remotes = parseGitRemotes(output);
+      expect(remotes).toHaveLength(1);
+      expect(remotes[0].url).toBe('https://github.com/user/repo.git');
+    });
+
+    it('should deduplicate by name', () => {
+      // Unlikely edge case but good to test
+      const output = `origin\thttps://github.com/user/repo.git (fetch)
+origin\thttps://github.com/user/repo.git (fetch)`;
+
+      const remotes = parseGitRemotes(output);
+      expect(remotes).toHaveLength(1);
+    });
+
     it('should handle empty output', () => {
       const remotes = parseGitRemotes('');
       expect(remotes).toHaveLength(0);
     });
 
-    it('should handle single remote', () => {
+    it('should handle SSH remotes', () => {
       const output = `origin\tgit@github.com:user/repo.git (fetch)
 origin\tgit@github.com:user/repo.git (push)`;
 
       const remotes = parseGitRemotes(output);
       expect(remotes).toHaveLength(1);
-      expect(remotes[0].name).toBe('origin');
+      expect(remotes[0].url).toBe('git@github.com:user/repo.git');
     });
   });
 
@@ -90,6 +131,15 @@ origin\tgit@github.com:user/repo.git (push)`;
       ];
       const result = getPreferredRemote(remotes);
       expect(result?.name).toBe('origin');
+    });
+
+    it('should prefer upstream over other remotes when origin not present', () => {
+      const remotes = [
+        { name: 'custom', url: 'https://github.com/custom/repo.git' },
+        { name: 'upstream', url: 'https://github.com/upstream/repo.git' },
+      ];
+      const result = getPreferredRemote(remotes);
+      expect(result?.name).toBe('upstream');
     });
 
     it('should respect custom preference order', () => {
@@ -121,11 +171,16 @@ origin\tgit@github.com:user/repo.git (push)`;
       expect(result).toBeNull();
     });
 
-    it('should return normalized remote for current repo', () => {
-      // This is an integration test - the current repo has git configured
+    it('should return null for non-existent directory', () => {
+      const result = getGitRemoteIdentifier('/nonexistent/path/12345');
+      expect(result).toBeNull();
+    });
+
+    it('should return normalized remote for current repo (integration)', () => {
       const result = getGitRemoteIdentifier(process.cwd());
-      // The current repo should have a GitHub remote
-      expect(result).toMatch(/^github\.com\/[\w.-]+\/[\w.-]+$/);
+      // Should match github.com/user/repo pattern
+      expect(result).toBeTruthy();
+      expect(result).toMatch(/^[\w.-]+\/[\w.-]+\/[\w.-]+$/);
     });
   });
 });

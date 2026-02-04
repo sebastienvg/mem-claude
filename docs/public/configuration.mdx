@@ -21,11 +21,58 @@ Settings are managed in `~/.claude-mem/settings.json`. The file is auto-created 
 | `CLAUDE_MEM_WORKER_HOST`      | `127.0.0.1`                     | Worker service host address           |
 | `CLAUDE_MEM_SKIP_TOOLS`       | `ListMcpResourcesTool,SlashCommand,Skill,TodoWrite,AskUserQuestion` | Comma-separated tools to exclude from observations |
 
+### Git Remote Settings
+
+Claude-mem uses git remotes to create portable project identifiers that work across machines and worktrees.
+
+| Setting                       | Default                         | Description                           |
+|-------------------------------|---------------------------------|---------------------------------------|
+| `CLAUDE_MEM_GIT_REMOTE_PREFERENCE` | `origin,upstream`          | Git remote priority order (comma-separated) |
+
+When a repository has multiple remotes, the first matching remote in the preference list is used to generate the project identifier.
+
+**Example:**
+```json
+{
+  "CLAUDE_MEM_GIT_REMOTE_PREFERENCE": "upstream,origin"
+}
+```
+
+This prioritizes `upstream` over `origin`, useful for fork workflows where `upstream` points to the canonical repository.
+
+**How it works:**
+- Project identifier format: `github.com/user/repo` (normalized from SSH or HTTPS URLs)
+- Falls back to folder basename if no git remote is available
+- Automatic alias registration links old folder-based names to new git-based identifiers
+
+### Agent Settings
+
+For multi-agent deployments where multiple Claude instances share memory:
+
+| Setting                              | Default   | Description                           |
+|--------------------------------------|-----------|---------------------------------------|
+| `CLAUDE_MEM_AGENT_DEFAULT_VISIBILITY` | `project` | Default observation visibility level  |
+| `CLAUDE_MEM_AGENT_KEY_EXPIRY_DAYS`   | `90`      | Days until API keys expire            |
+| `CLAUDE_MEM_AGENT_LOCKOUT_DURATION`  | `300`     | Lockout seconds after failed auth     |
+| `CLAUDE_MEM_AGENT_MAX_FAILED_ATTEMPTS` | `5`     | Auth attempts before lockout          |
+
+**Example:**
+```json
+{
+  "CLAUDE_MEM_AGENT_DEFAULT_VISIBILITY": "department",
+  "CLAUDE_MEM_AGENT_KEY_EXPIRY_DAYS": "30",
+  "CLAUDE_MEM_AGENT_LOCKOUT_DURATION": "600",
+  "CLAUDE_MEM_AGENT_MAX_FAILED_ATTEMPTS": "3"
+}
+```
+
+See [Multi-Agent Architecture](/multi-agent) for full documentation on visibility levels and security.
+
 ### Gemini Provider Settings
 
 | Setting                       | Default                         | Description                           |
 |-------------------------------|---------------------------------|---------------------------------------|
-| `CLAUDE_MEM_GEMINI_API_KEY`   | —                               | Gemini API key ([get free key](https://aistudio.google.com/app/apikey)) |
+| `CLAUDE_MEM_GEMINI_API_KEY`   | -                               | Gemini API key ([get free key](https://aistudio.google.com/app/apikey)) |
 | `CLAUDE_MEM_GEMINI_MODEL`     | `gemini-2.5-flash-lite`          | Gemini model: `gemini-2.5-flash-lite`, `gemini-2.5-flash`, `gemini-3-flash` |
 
 See [Gemini Provider](usage/gemini-provider) for detailed configuration and free tier information.
@@ -34,11 +81,11 @@ See [Gemini Provider](usage/gemini-provider) for detailed configuration and free
 
 | Setting                                      | Default                     | Description                           |
 |----------------------------------------------|-----------------------------|---------------------------------------|
-| `CLAUDE_MEM_OPENROUTER_API_KEY`              | —                           | OpenRouter API key ([get key](https://openrouter.ai/keys)) |
+| `CLAUDE_MEM_OPENROUTER_API_KEY`              | -                           | OpenRouter API key ([get key](https://openrouter.ai/keys)) |
 | `CLAUDE_MEM_OPENROUTER_MODEL`                | `xiaomi/mimo-v2-flash:free` | Model identifier (supports 100+ models) |
 | `CLAUDE_MEM_OPENROUTER_MAX_CONTEXT_MESSAGES` | `20`                        | Max messages in conversation history  |
 | `CLAUDE_MEM_OPENROUTER_MAX_TOKENS`           | `100000`                    | Token budget safety limit             |
-| `CLAUDE_MEM_OPENROUTER_SITE_URL`             | —                           | Optional: URL for analytics           |
+| `CLAUDE_MEM_OPENROUTER_SITE_URL`             | -                           | Optional: URL for analytics           |
 | `CLAUDE_MEM_OPENROUTER_APP_NAME`             | `claude-mem`                | Optional: App name for analytics      |
 
 See [OpenRouter Provider](usage/openrouter-provider) for detailed configuration, free model list, and usage guide.
@@ -500,6 +547,8 @@ If port 37777 is already in use:
 
 ## Next Steps
 
+- [Multi-Agent Architecture](/multi-agent) - Share memory across agents
+- [API Reference](/api-reference) - HTTP API endpoints
 - [Architecture Overview](architecture/overview) - Understand the system
 - [Troubleshooting](troubleshooting) - Common issues
 - [Development](development) - Building from source

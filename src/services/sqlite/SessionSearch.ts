@@ -11,8 +11,10 @@ import {
   SearchFilters,
   DateRange,
   ObservationRow,
-  UserPromptRow
+  UserPromptRow,
+  VisibilityFilterOptions
 } from './types.js';
+import { getProjectsWithAliases } from './project-aliases.js';
 
 /**
  * Search interface for session-based memory
@@ -147,20 +149,79 @@ export class SessionSearch {
 
 
   /**
-   * Build WHERE clause for structured filters
+   * Build visibility filter clause for multi-agent access control
+   *
+   * Visibility levels:
+   * - public: Everyone can see
+   * - project: Currently = public (no project ACLs yet)
+   * - department: Same department only
+   * - private: Owner only
+   *
+   * IMPORTANT: visibility = 'project' currently means "visible to everyone".
+   * If project-level ACLs are added in future, this filter must be updated
+   * to check project membership.
+   *
+   * @param visibility - Visibility filter options (agentId and agentDepartment)
+   * @param params - Array to push parameters to
+   * @param tableAlias - Table alias (default 'o')
+   * @returns SQL condition string for visibility filtering
+   */
+  private buildVisibilityClause(
+    visibility: VisibilityFilterOptions | undefined,
+    params: any[],
+    tableAlias: string = 'o'
+  ): string {
+    // If no visibility options provided (legacy mode), filter to public/project only
+    if (!visibility || !visibility.agentId) {
+      return `${tableAlias}.visibility IN ('public', 'project')`;
+    }
+
+    const { agentId, agentDepartment } = visibility;
+
+    // If we have an agent ID but no department, we can only do agent-level filtering
+    // and must fall back to public/project for department visibility
+    if (!agentDepartment) {
+      params.push(agentId);
+      return `(
+        ${tableAlias}.visibility IN ('public', 'project')
+        OR (${tableAlias}.visibility = 'private' AND ${tableAlias}.agent = ?)
+      )`;
+    }
+
+    // Full visibility filtering with department
+    // - public and project: everyone can see
+    // - department: same department only
+    // - private: owner only
+    params.push(agentDepartment, agentId);
+    return `(
+      ${tableAlias}.visibility IN ('public', 'project')
+      OR (${tableAlias}.visibility = 'department' AND ${tableAlias}.department = ?)
+      OR (${tableAlias}.visibility = 'private' AND ${tableAlias}.agent = ?)
+    )`;
+  }
+
+  /**
+   * Build WHERE clause for structured filters (includes project alias expansion and visibility)
    */
   private buildFilterClause(
     filters: SearchFilters,
     params: any[],
-    tableAlias: string = 'o'
+    tableAlias: string = 'o',
+    visibility?: VisibilityFilterOptions
   ): string {
     const conditions: string[] = [];
 
-    // Project filter
+    // Project filter (with alias expansion)
     if (filters.project) {
-      conditions.push(`${tableAlias}.project = ?`);
-      params.push(filters.project);
+      const projects = getProjectsWithAliases(this.db, filters.project);
+      const placeholders = projects.map(() => '?').join(', ');
+      conditions.push(`${tableAlias}.project IN (${placeholders})`);
+      params.push(...projects);
     }
+
+    // Visibility filter for multi-agent access control
+    const visibilityClause = this.buildVisibilityClause(visibility, params, tableAlias);
+    conditions.push(visibilityClause);
 
     // Type filter (for observations only)
     if (filters.type) {
@@ -240,15 +301,16 @@ export class SessionSearch {
   /**
    * Search observations using filter-only direct SQLite query.
    * Vector search is handled by ChromaDB - this only supports filtering without query text.
+   * Supports visibility filtering when options.visibility is provided.
    */
   searchObservations(query: string | undefined, options: SearchOptions = {}): ObservationSearchResult[] {
     const params: any[] = [];
-    const { limit = 50, offset = 0, orderBy = 'relevance', ...filters } = options;
+    const { limit = 50, offset = 0, orderBy = 'relevance', visibility, ...filters } = options;
 
     // FILTER-ONLY PATH: When no query text, query table directly
     // This enables date filtering which Chroma cannot do (requires direct SQLite access)
     if (!query) {
-      const filterClause = this.buildFilterClause(filters, params, 'o');
+      const filterClause = this.buildFilterClause(filters, params, 'o', visibility);
       if (!filterClause) {
         throw new Error('Either query or filters required for search');
       }
@@ -276,16 +338,17 @@ export class SessionSearch {
   /**
    * Search session summaries using filter-only direct SQLite query.
    * Vector search is handled by ChromaDB - this only supports filtering without query text.
+   * Supports visibility filtering when options.visibility is provided.
    */
   searchSessions(query: string | undefined, options: SearchOptions = {}): SessionSummarySearchResult[] {
     const params: any[] = [];
-    const { limit = 50, offset = 0, orderBy = 'relevance', ...filters } = options;
+    const { limit = 50, offset = 0, orderBy = 'relevance', visibility, ...filters } = options;
 
     // FILTER-ONLY PATH: When no query text, query session_summaries table directly
     if (!query) {
       const filterOptions = { ...filters };
       delete filterOptions.type;
-      const filterClause = this.buildFilterClause(filterOptions, params, 's');
+      const filterClause = this.buildFilterClause(filterOptions, params, 's', visibility);
       if (!filterClause) {
         throw new Error('Either query or filters required for search');
       }
@@ -314,14 +377,15 @@ export class SessionSearch {
 
   /**
    * Find observations by concept tag
+   * Supports visibility filtering when options.visibility is provided.
    */
   findByConcept(concept: string, options: SearchOptions = {}): ObservationSearchResult[] {
     const params: any[] = [];
-    const { limit = 50, offset = 0, orderBy = 'date_desc', ...filters } = options;
+    const { limit = 50, offset = 0, orderBy = 'date_desc', visibility, ...filters } = options;
 
     // Add concept to filters
     const conceptFilters = { ...filters, concepts: concept };
-    const filterClause = this.buildFilterClause(conceptFilters, params, 'o');
+    const filterClause = this.buildFilterClause(conceptFilters, params, 'o', visibility);
     const orderClause = this.buildOrderClause(orderBy, false);
 
     const sql = `
@@ -376,20 +440,21 @@ export class SessionSearch {
   /**
    * Find observations and summaries by file path
    * When isFolder=true, only returns results with files directly in the folder (not subfolders)
+   * Supports visibility filtering when options.visibility is provided.
    */
   findByFile(filePath: string, options: SearchOptions = {}): {
     observations: ObservationSearchResult[];
     sessions: SessionSummarySearchResult[];
   } {
     const params: any[] = [];
-    const { limit = 50, offset = 0, orderBy = 'date_desc', isFolder = false, ...filters } = options;
+    const { limit = 50, offset = 0, orderBy = 'date_desc', isFolder = false, visibility, ...filters } = options;
 
     // Query more results if we're filtering to direct children
     const queryLimit = isFolder ? limit * 3 : limit;
 
     // Add file to filters
     const fileFilters = { ...filters, files: filePath };
-    const filterClause = this.buildFilterClause(fileFilters, params, 'o');
+    const filterClause = this.buildFilterClause(fileFilters, params, 'o', visibility);
     const orderClause = this.buildOrderClause(orderBy, false);
 
     const observationsSql = `
@@ -416,9 +481,15 @@ export class SessionSearch {
 
     const baseConditions: string[] = [];
     if (sessionFilters.project) {
-      baseConditions.push('s.project = ?');
-      sessionParams.push(sessionFilters.project);
+      const sessionProjects = getProjectsWithAliases(this.db, sessionFilters.project);
+      const sessionPlaceholders = sessionProjects.map(() => '?').join(', ');
+      baseConditions.push(`s.project IN (${sessionPlaceholders})`);
+      sessionParams.push(...sessionProjects);
     }
+
+    // Visibility filter for sessions
+    const sessionVisibilityClause = this.buildVisibilityClause(visibility, sessionParams, 's');
+    baseConditions.push(sessionVisibilityClause);
 
     if (sessionFilters.dateRange) {
       const { start, end } = sessionFilters.dateRange;
@@ -463,17 +534,18 @@ export class SessionSearch {
 
   /**
    * Find observations by type
+   * Supports visibility filtering when options.visibility is provided.
    */
   findByType(
     type: ObservationRow['type'] | ObservationRow['type'][],
     options: SearchOptions = {}
   ): ObservationSearchResult[] {
     const params: any[] = [];
-    const { limit = 50, offset = 0, orderBy = 'date_desc', ...filters } = options;
+    const { limit = 50, offset = 0, orderBy = 'date_desc', visibility, ...filters } = options;
 
     // Add type to filters
     const typeFilters = { ...filters, type };
-    const filterClause = this.buildFilterClause(typeFilters, params, 'o');
+    const filterClause = this.buildFilterClause(typeFilters, params, 'o', visibility);
     const orderClause = this.buildOrderClause(orderBy, false);
 
     const sql = `
@@ -500,8 +572,10 @@ export class SessionSearch {
     // Build filter conditions (join with sdk_sessions for project filtering)
     const baseConditions: string[] = [];
     if (filters.project) {
-      baseConditions.push('s.project = ?');
-      params.push(filters.project);
+      const projects = getProjectsWithAliases(this.db, filters.project);
+      const placeholders = projects.map(() => '?').join(', ');
+      baseConditions.push(`s.project IN (${placeholders})`);
+      params.push(...projects);
     }
 
     if (filters.dateRange) {

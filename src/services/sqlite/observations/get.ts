@@ -7,6 +7,7 @@ import { Database } from 'bun:sqlite';
 import { logger } from '../../../utils/logger.js';
 import type { ObservationRecord } from '../../../types/database.js';
 import type { GetObservationsByIdsOptions, ObservationSessionRow } from './types.js';
+import { getProjectsWithAliases } from '../project-aliases.js';
 
 /**
  * Get a single observation by ID
@@ -40,10 +41,12 @@ export function getObservationsByIds(
   const params: any[] = [...ids];
   const additionalConditions: string[] = [];
 
-  // Apply project filter
+  // Apply project filter (with alias expansion)
   if (project) {
-    additionalConditions.push('project = ?');
-    params.push(project);
+    const projects = getProjectsWithAliases(db, project);
+    const projectPlaceholders = projects.map(() => '?').join(', ');
+    additionalConditions.push(`project IN (${projectPlaceholders})`);
+    params.push(...projects);
   }
 
   // Apply type filter

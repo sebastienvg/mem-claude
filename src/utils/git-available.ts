@@ -1,8 +1,8 @@
 /**
- * Git Availability Utility
+ * Git Availability Detection Utility
  *
- * Provides a cached check for whether the git CLI is available on the system.
- * Used by git-remote.ts and other git-related utilities.
+ * Checks if git CLI is available on the system with caching
+ * to avoid repeated shell calls.
  */
 
 import { execSync } from 'child_process';
@@ -13,6 +13,8 @@ let gitAvailable: boolean | null = null;
 /**
  * Check if git CLI is available on this system.
  * Caches result to avoid repeated shell calls.
+ *
+ * @returns true if git is available, false otherwise
  */
 export function isGitAvailable(): boolean {
   if (gitAvailable !== null) return gitAvailable;
@@ -22,7 +24,7 @@ export function isGitAvailable(): boolean {
     gitAvailable = true;
   } catch {
     gitAvailable = false;
-    logger.warn('SYSTEM', 'Git CLI not available, falling back to basename');
+    logger.warn('GIT', 'Git CLI not available, falling back to basename');
   }
 
   return gitAvailable;

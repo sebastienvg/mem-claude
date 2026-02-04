@@ -5,6 +5,7 @@ import type { Database } from 'bun:sqlite';
 import { logger } from '../../../utils/logger.js';
 import type { SessionSummaryRecord } from '../../../types/database.js';
 import type { SessionSummary, GetByIdsOptions } from './types.js';
+import { getProjectsWithAliases } from '../project-aliases.js';
 
 /**
  * Get summary for a specific session
@@ -70,11 +71,16 @@ export function getSummariesByIds(
   const placeholders = ids.map(() => '?').join(',');
   const params: (number | string)[] = [...ids];
 
-  // Apply project filter
-  const whereClause = project
-    ? `WHERE id IN (${placeholders}) AND project = ?`
-    : `WHERE id IN (${placeholders})`;
-  if (project) params.push(project);
+  // Apply project filter (with alias expansion)
+  let whereClause: string;
+  if (project) {
+    const projects = getProjectsWithAliases(db, project);
+    const projectPlaceholders = projects.map(() => '?').join(', ');
+    whereClause = `WHERE id IN (${placeholders}) AND project IN (${projectPlaceholders})`;
+    params.push(...projects);
+  } else {
+    whereClause = `WHERE id IN (${placeholders})`;
+  }
 
   const stmt = db.prepare(`
     SELECT * FROM session_summaries

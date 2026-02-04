@@ -1,13 +1,18 @@
 import path from 'path';
 import { logger } from './logger.js';
 import { detectWorktree } from './worktree.js';
+import { getGitRemoteIdentifier } from './git-remote.js';
 
 /**
- * Extract project name from working directory path
- * Handles edge cases: null/undefined cwd, drive roots, trailing slashes
+ * Get project name from the current working directory.
+ *
+ * Priority:
+ * 1. Git remote URL (normalized) -> 'github.com/user/repo'
+ * 2. Folder basename -> 'my-project'
+ * 3. Fallback -> 'unknown-project'
  *
  * @param cwd - Current working directory (absolute path)
- * @returns Project name or "unknown-project" if extraction fails
+ * @returns Project identifier
  */
 export function getProjectName(cwd: string | null | undefined): string {
   if (!cwd || cwd.trim() === '') {
@@ -15,7 +20,14 @@ export function getProjectName(cwd: string | null | undefined): string {
     return 'unknown-project';
   }
 
-  // Extract basename (handles trailing slashes automatically)
+  // Try git remote first (portable across machines)
+  const remoteId = getGitRemoteIdentifier(cwd);
+  if (remoteId) {
+    logger.debug('PROJECT_NAME', 'Using git remote identifier', { cwd, remoteId });
+    return remoteId;
+  }
+
+  // Fall back to folder basename
   const basename = path.basename(cwd);
 
   // Edge case: Drive roots on Windows (C:\, J:\) or Unix root (/)

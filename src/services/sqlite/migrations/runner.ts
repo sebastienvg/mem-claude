@@ -31,6 +31,8 @@ export class MigrationRunner {
     this.renameSessionIdColumns();
     this.repairSessionIdColumnRename();
     this.addFailedAtEpochColumn();
+    this.createMultiAgentTables();
+    this.createProjectAliasesTable();
   }
 
   /**
@@ -627,5 +629,224 @@ export class MigrationRunner {
     }
 
     this.db.prepare('INSERT OR IGNORE INTO schema_versions (version, applied_at) VALUES (?, ?)').run(20, new Date().toISOString());
+  }
+
+  /**
+   * Create multi-agent architecture tables (migration 21)
+   *
+   * Key design decisions:
+   * - api_key_prefix: First 12 chars of key for O(1) lookup (indexed)
+   * - api_key_hash: Full SHA-256 hash for verification (unique)
+   * - expires_at_epoch: Optional key expiration (default 90 days)
+   * - failed_attempts: Counter for brute-force protection
+   * - locked_until_epoch: Temporary lockout after too many failures
+   *
+   * Also extends observations and session_summaries with agent metadata:
+   * - agent: The agent ID that created the record (default 'legacy' for existing data)
+   * - department: The department the agent belongs to (default 'default')
+   * - visibility: Access control level (private, department, project, public)
+   */
+  private createMultiAgentTables(): void {
+    const applied = this.db.prepare('SELECT version FROM schema_versions WHERE version = ?').get(21) as SchemaVersion | undefined;
+    if (applied) return;
+
+    logger.debug('DB', 'Creating multi-agent architecture tables');
+
+    // Check if agents table already exists
+    const agentsTables = this.db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='agents'").all() as TableNameRow[];
+    if (agentsTables.length === 0) {
+      // Create agents table with O(1) key lookup
+      this.db.run(`
+        CREATE TABLE agents (
+          id TEXT PRIMARY KEY,
+          department TEXT NOT NULL DEFAULT 'default',
+          permissions TEXT NOT NULL DEFAULT 'read,write',
+          api_key_prefix TEXT,
+          api_key_hash TEXT UNIQUE,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          created_at_epoch INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+          last_seen_at TEXT,
+          last_seen_at_epoch INTEGER,
+          verified INTEGER NOT NULL DEFAULT 0,
+          expires_at TEXT,
+          expires_at_epoch INTEGER,
+          failed_attempts INTEGER NOT NULL DEFAULT 0,
+          locked_until_epoch INTEGER
+        )
+      `);
+
+      this.db.run('CREATE INDEX idx_agents_department ON agents(department)');
+      this.db.run('CREATE INDEX idx_agents_verified ON agents(verified)');
+      this.db.run('CREATE INDEX idx_agents_api_key_prefix ON agents(api_key_prefix)');
+
+      logger.debug('DB', 'Created agents table with O(1) key lookup indexes');
+    }
+
+    // Check if audit_log table already exists
+    const auditTables = this.db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='audit_log'").all() as TableNameRow[];
+    if (auditTables.length === 0) {
+      // Create audit log for security tracking
+      this.db.run(`
+        CREATE TABLE audit_log (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          agent_id TEXT NOT NULL,
+          action TEXT NOT NULL,
+          resource_type TEXT,
+          resource_id TEXT,
+          details TEXT,
+          ip_address TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          created_at_epoch INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        )
+      `);
+
+      this.db.run('CREATE INDEX idx_audit_log_agent ON audit_log(agent_id)');
+      this.db.run('CREATE INDEX idx_audit_log_action ON audit_log(action)');
+      this.db.run('CREATE INDEX idx_audit_log_created ON audit_log(created_at_epoch DESC)');
+
+      logger.debug('DB', 'Created audit_log table');
+    }
+
+    // Add agent metadata columns to observations with CHECK constraint on visibility
+    // SQLite doesn't support ALTER TABLE ADD COLUMN with CHECK, so we recreate the table
+    const observationsInfo = this.db.query('PRAGMA table_info(observations)').all() as TableColumnInfo[];
+    const obsHasAgent = observationsInfo.some(col => col.name === 'agent');
+
+    if (!obsHasAgent) {
+      logger.debug('DB', 'Recreating observations table with agent metadata columns');
+
+      this.db.run('BEGIN TRANSACTION');
+
+      // Create new observations table with agent metadata and visibility CHECK constraint
+      this.db.run(`
+        CREATE TABLE observations_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          memory_session_id TEXT NOT NULL,
+          project TEXT NOT NULL,
+          text TEXT,
+          type TEXT NOT NULL CHECK(type IN ('decision', 'bugfix', 'feature', 'refactor', 'discovery', 'change')),
+          title TEXT,
+          subtitle TEXT,
+          facts TEXT,
+          narrative TEXT,
+          concepts TEXT,
+          files_read TEXT,
+          files_modified TEXT,
+          prompt_number INTEGER,
+          discovery_tokens INTEGER DEFAULT 0,
+          agent TEXT DEFAULT 'legacy',
+          department TEXT DEFAULT 'default',
+          visibility TEXT DEFAULT 'project' CHECK(visibility IN ('private', 'department', 'project', 'public')),
+          created_at TEXT NOT NULL,
+          created_at_epoch INTEGER NOT NULL,
+          FOREIGN KEY(memory_session_id) REFERENCES sdk_sessions(memory_session_id) ON DELETE CASCADE
+        )
+      `);
+
+      // Copy data from old table
+      this.db.run(`
+        INSERT INTO observations_new (
+          id, memory_session_id, project, text, type, title, subtitle, facts,
+          narrative, concepts, files_read, files_modified, prompt_number,
+          discovery_tokens, created_at, created_at_epoch
+        )
+        SELECT
+          id, memory_session_id, project, text, type, title, subtitle, facts,
+          narrative, concepts, files_read, files_modified, prompt_number,
+          discovery_tokens, created_at, created_at_epoch
+        FROM observations
+      `);
+
+      // Drop old table
+      this.db.run('DROP TABLE observations');
+
+      // Rename new table
+      this.db.run('ALTER TABLE observations_new RENAME TO observations');
+
+      // Recreate all indexes
+      this.db.run('CREATE INDEX idx_observations_sdk_session ON observations(memory_session_id)');
+      this.db.run('CREATE INDEX idx_observations_project ON observations(project)');
+      this.db.run('CREATE INDEX idx_observations_type ON observations(type)');
+      this.db.run('CREATE INDEX idx_observations_created ON observations(created_at_epoch DESC)');
+      this.db.run('CREATE INDEX idx_observations_agent ON observations(agent)');
+      this.db.run('CREATE INDEX idx_observations_department ON observations(department)');
+      this.db.run('CREATE INDEX idx_observations_visibility ON observations(visibility)');
+
+      this.db.run('COMMIT');
+
+      logger.debug('DB', 'Added agent/department/visibility columns to observations table');
+    }
+
+    // Add agent metadata columns to session_summaries
+    const summariesInfo = this.db.query('PRAGMA table_info(session_summaries)').all() as TableColumnInfo[];
+    const sumHasAgent = summariesInfo.some(col => col.name === 'agent');
+
+    if (!sumHasAgent) {
+      this.db.run("ALTER TABLE session_summaries ADD COLUMN agent TEXT DEFAULT 'legacy'");
+      this.db.run("ALTER TABLE session_summaries ADD COLUMN department TEXT DEFAULT 'default'");
+      this.db.run("ALTER TABLE session_summaries ADD COLUMN visibility TEXT DEFAULT 'project'");
+
+      logger.debug('DB', 'Added agent/department/visibility columns to session_summaries table');
+    }
+
+    // Record migration
+    this.db.prepare('INSERT OR IGNORE INTO schema_versions (version, applied_at) VALUES (?, ?)').run(21, new Date().toISOString());
+
+    logger.debug('DB', 'Multi-agent architecture tables created successfully');
+  }
+
+  /**
+   * Create project_aliases table for migration compatibility (migration 22)
+   *
+   * Maps old folder-based project names to new git-remote-based identifiers.
+   * Enables querying historical data using either format.
+   *
+   * Key design decisions:
+   * - old_project: The folder basename (e.g., 'claude-mem')
+   * - new_project: The git remote identifier (e.g., 'github.com/sebastienvg/claude-mem')
+   * - UNIQUE(old_project, new_project): Prevents duplicate mappings
+   * - Indexes on new_project (reverse lookup) and created_at_epoch (cleanup)
+   */
+  private createProjectAliasesTable(): void {
+    const applied = this.db.prepare('SELECT version FROM schema_versions WHERE version = ?').get(22) as SchemaVersion | undefined;
+    if (applied) return;
+
+    // Check if table already exists (idempotent)
+    const tables = this.db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='project_aliases'").all() as TableNameRow[];
+    if (tables.length > 0) {
+      this.db.prepare('INSERT OR IGNORE INTO schema_versions (version, applied_at) VALUES (?, ?)').run(22, new Date().toISOString());
+      return;
+    }
+
+    logger.debug('DB', 'Creating project_aliases table for migration compatibility');
+
+    // Create project_aliases table
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS project_aliases (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        old_project TEXT NOT NULL,
+        new_project TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        created_at_epoch INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+        UNIQUE(old_project, new_project)
+      )
+    `);
+
+    // Index for looking up aliases when querying by new project
+    this.db.run(`
+      CREATE INDEX IF NOT EXISTS idx_project_aliases_new_project
+      ON project_aliases(new_project)
+    `);
+
+    // Index for cleanup queries by age
+    this.db.run(`
+      CREATE INDEX IF NOT EXISTS idx_project_aliases_created_at_epoch
+      ON project_aliases(created_at_epoch)
+    `);
+
+    // Record migration
+    this.db.prepare('INSERT OR IGNORE INTO schema_versions (version, applied_at) VALUES (?, ?)').run(22, new Date().toISOString());
+
+    logger.debug('DB', 'project_aliases table created successfully');
   }
 }

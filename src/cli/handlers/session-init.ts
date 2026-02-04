@@ -32,7 +32,8 @@ export const sessionInitHandler: EventHandler = {
       body: JSON.stringify({
         contentSessionId: sessionId,
         project,
-        prompt
+        prompt,
+        cwd  // Include cwd for project alias registration
       })
       // Note: Removed signal to avoid Windows Bun cleanup issue (libuv assertion)
     });
