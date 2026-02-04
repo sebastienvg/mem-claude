@@ -1,17 +1,16 @@
 /**
  * Git Remote URL Utilities
  *
- * Provides utilities to detect git remotes and normalize URLs to a consistent
- * identifier format (e.g., `github.com/user/repo`).
- *
- * Used for project identification across sessions.
+ * Detects git remotes and normalizes URLs to a consistent identifier format
+ * (e.g., `github.com/user/repo`).
  */
 
 import { execSync } from 'child_process';
-import { existsSync } from 'fs';
+import { existsSync, statSync, readFileSync } from 'fs';
 import path from 'path';
 import { isGitAvailable } from './git-available.js';
 import { logger } from './logger.js';
+import { getGitRemotePreference } from '../shared/settings-helpers.js';
 
 export interface GitRemote {
   name: string;
@@ -28,6 +27,9 @@ const DEFAULT_REMOTE_PREFERENCE = ['origin', 'upstream'];
  * - https://github.com/user/repo.git -> github.com/user/repo
  * - git@github.com:user/repo.git -> github.com/user/repo
  * - https://github.example.com:8443/org/repo.git -> github.example.com/org/repo
+ *
+ * @param url - The git remote URL to normalize
+ * @returns Normalized identifier or null if invalid
  */
 export function normalizeGitUrl(url: string | null | undefined): string | null {
   if (!url || typeof url !== 'string' || url.trim() === '') {
@@ -55,6 +57,9 @@ export function normalizeGitUrl(url: string | null | undefined): string | null {
 /**
  * Parse git remote -v output into structured remotes.
  * Only includes fetch URLs (not push) and deduplicates by name.
+ *
+ * @param output - Output from `git remote -v` command
+ * @returns Array of GitRemote objects
  */
 export function parseGitRemotes(output: string): GitRemote[] {
   const remotes: GitRemote[] = [];
@@ -73,8 +78,10 @@ export function parseGitRemotes(output: string): GitRemote[] {
 
 /**
  * Select the preferred remote from a list.
+ *
  * @param remotes - List of git remotes
- * @param preference - Ordered list of preferred remote names
+ * @param preference - Ordered list of preferred remote names (default: ['origin', 'upstream'])
+ * @returns The preferred remote or null if no remotes
  */
 export function getPreferredRemote(
   remotes: GitRemote[],
@@ -91,8 +98,54 @@ export function getPreferredRemote(
 }
 
 /**
+ * Find the git root directory from a given path.
+ * Handles both regular repos and worktrees.
+ *
+ * @param cwd - Starting directory
+ * @returns Path to git root or null if not in a git repo
+ */
+function findGitRoot(cwd: string): string | null {
+  const gitPath = path.join(cwd, '.git');
+
+  if (!existsSync(gitPath)) {
+    return null;
+  }
+
+  try {
+    const stat = statSync(gitPath);
+
+    if (stat.isDirectory()) {
+      // Regular git repo
+      return cwd;
+    }
+
+    if (stat.isFile()) {
+      // Worktree - read the gitdir path
+      const content = readFileSync(gitPath, 'utf-8').trim();
+      const match = content.match(/^gitdir:\s*(.+)$/);
+      if (match) {
+        // Extract parent repo path from worktree gitdir
+        // Format: /path/to/parent/.git/worktrees/<name>
+        const worktreesMatch = match[1].match(/^(.+)[/\\]\.git[/\\]worktrees[/\\]/);
+        if (worktreesMatch) {
+          return worktreesMatch[1];
+        }
+      }
+    }
+  } catch {
+    // Ignore errors
+  }
+
+  return null;
+}
+
+/**
  * Get the git remote identifier for a directory.
  * Returns normalized URL like 'github.com/user/repo' or null if not available.
+ *
+ * @param cwd - Current working directory
+ * @param remotePreference - Ordered list of preferred remote names
+ * @returns Normalized remote identifier or null
  */
 export function getGitRemoteIdentifier(
   cwd: string,
@@ -100,28 +153,31 @@ export function getGitRemoteIdentifier(
 ): string | null {
   if (!isGitAvailable()) return null;
 
-  const gitPath = path.join(cwd, '.git');
-  if (!existsSync(gitPath)) return null;
+  // Find git root (handles worktrees)
+  const gitRoot = findGitRoot(cwd);
+  if (!gitRoot) return null;
 
   try {
     const remotesOutput = execSync('git remote -v', {
-      cwd,
+      cwd: gitRoot,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
       timeout: 5000
     });
 
     const remotes = parseGitRemotes(remotesOutput);
-    const preferred = getPreferredRemote(remotes, remotePreference);
+    // Use provided preference or fall back to settings
+    const preference = remotePreference ?? getGitRemotePreference();
+    const preferred = getPreferredRemote(remotes, preference);
 
     if (!preferred) {
-      logger.debug('SYSTEM', 'No remotes configured', { cwd });
+      logger.debug('GIT_REMOTE', 'No remotes configured', { cwd });
       return null;
     }
 
     return normalizeGitUrl(preferred.url);
   } catch (error) {
-    logger.debug('SYSTEM', 'Failed to get remote', { cwd, error: String(error) });
+    logger.debug('GIT_REMOTE', 'Failed to get remote', { cwd, error });
     return null;
   }
 }

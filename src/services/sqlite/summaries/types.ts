@@ -2,6 +2,7 @@
  * Type definitions for summary-related database operations
  */
 import { logger } from '../../../utils/logger.js';
+import type { VisibilityLevel } from '../observations/types.js';
 
 /**
  * Summary input for storage (from SDK parsing)
@@ -13,6 +14,10 @@ export interface SummaryInput {
   completed: string;
   next_steps: string;
   notes: string | null;
+  // Multi-agent metadata (optional, defaults provided)
+  agent?: string;
+  department?: string;
+  visibility?: VisibilityLevel;
 }
 
 /**

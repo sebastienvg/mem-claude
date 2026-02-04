@@ -4,9 +4,10 @@
 import type { Database } from 'bun:sqlite';
 import { logger } from '../../../utils/logger.js';
 import type { RecentSummary, SummaryWithSessionInfo, FullSummary } from './types.js';
+import { getProjectsWithAliases } from '../project-aliases.js';
 
 /**
- * Get recent session summaries for a project
+ * Get recent session summaries for a project (includes aliased projects)
  *
  * @param db - Database instance
  * @param project - Project name to filter by
@@ -17,21 +18,25 @@ export function getRecentSummaries(
   project: string,
   limit: number = 10
 ): RecentSummary[] {
+  // Expand project to include aliases
+  const projects = getProjectsWithAliases(db, project);
+  const placeholders = projects.map(() => '?').join(', ');
+
   const stmt = db.prepare(`
     SELECT
       request, investigated, learned, completed, next_steps,
       files_read, files_edited, notes, prompt_number, created_at
     FROM session_summaries
-    WHERE project = ?
+    WHERE project IN (${placeholders})
     ORDER BY created_at_epoch DESC
     LIMIT ?
   `);
 
-  return stmt.all(project, limit) as RecentSummary[];
+  return stmt.all(...projects, limit) as RecentSummary[];
 }
 
 /**
- * Get recent summaries with session info for context display
+ * Get recent summaries with session info for context display (includes aliased projects)
  *
  * @param db - Database instance
  * @param project - Project name to filter by
@@ -42,17 +47,21 @@ export function getRecentSummariesWithSessionInfo(
   project: string,
   limit: number = 3
 ): SummaryWithSessionInfo[] {
+  // Expand project to include aliases
+  const projects = getProjectsWithAliases(db, project);
+  const placeholders = projects.map(() => '?').join(', ');
+
   const stmt = db.prepare(`
     SELECT
       memory_session_id, request, learned, completed, next_steps,
       prompt_number, created_at
     FROM session_summaries
-    WHERE project = ?
+    WHERE project IN (${placeholders})
     ORDER BY created_at_epoch DESC
     LIMIT ?
   `);
 
-  return stmt.all(project, limit) as SummaryWithSessionInfo[];
+  return stmt.all(...projects, limit) as SummaryWithSessionInfo[];
 }
 
 /**

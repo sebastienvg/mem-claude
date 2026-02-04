@@ -4,9 +4,9 @@ Claude-mem is a Claude Code plugin providing persistent memory across sessions. 
 
 ## Architecture
 
-**5 Lifecycle Hooks**: SessionStart → UserPromptSubmit → PostToolUse → Summary → SessionEnd
+**5 Lifecycle Hooks**: SessionStart -> UserPromptSubmit -> PostToolUse -> Summary -> SessionEnd
 
-**Hooks** (`src/hooks/*.ts`) - TypeScript → ESM, built to `plugin/scripts/*-hook.js`
+**Hooks** (`src/hooks/*.ts`) - TypeScript -> ESM, built to `plugin/scripts/*-hook.js`
 
 **Worker Service** (`src/services/worker-service.ts`) - Express API on port 37777, Bun-managed, handles AI processing asynchronously
 
@@ -40,6 +40,34 @@ Settings are managed in `~/.claude-mem/settings.json`. The file is auto-created 
 - **Installed Plugin**: `~/.claude/plugins/marketplaces/thedotmack/`
 - **Database**: `~/.claude-mem/claude-mem.db`
 - **Chroma**: `~/.claude-mem/chroma/`
+
+## Git-Based Project Identity
+
+Projects are identified by git remote URL for portability across machines:
+- Format: `github.com/user/repo` (normalized from SSH or HTTPS URLs)
+- Fallback: folder basename for non-git directories
+- Aliases: Old folder-based names automatically map to new git-based identifiers
+
+**Key files:**
+- `src/utils/git-remote.ts` - Git remote URL normalization
+- `src/utils/project-name.ts` - Project identifier resolution
+- `src/services/sqlite/project-aliases.ts` - Alias registration and lookup
+
+## Multi-Agent Support
+
+Claude-mem supports multiple agents sharing memories with visibility controls.
+See `docs/public/multi-agent.mdx` for full documentation.
+
+### Quick Reference
+
+- Agent ID format: `user@host`
+- API endpoints: `/api/agents/*`
+- Visibility levels: private, department, project, public
+- Key expiration: 90 days default
+
+**Key files:**
+- `src/services/agents/AgentService.ts` - Agent authentication and authorization
+- `src/services/agents/errors.ts` - Agent-specific error classes
 
 ## Exit Code Strategy
 

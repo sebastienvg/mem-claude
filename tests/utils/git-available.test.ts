@@ -1,8 +1,7 @@
 /**
  * Git Available Utility Tests
  *
- * Tests the isGitAvailable() function that detects if git CLI is installed.
- * Caches result to avoid repeated shell calls.
+ * Tests for git CLI availability detection with caching.
  */
 
 import { describe, it, expect, beforeEach } from 'bun:test';
@@ -16,6 +15,12 @@ describe('Git Available Utility', () => {
   it('should return boolean', () => {
     const result = isGitAvailable();
     expect(typeof result).toBe('boolean');
+  });
+
+  it('should return true when git is installed', () => {
+    // This test assumes git is installed on the CI/dev machine
+    const result = isGitAvailable();
+    expect(result).toBe(true);
   });
 
   it('should cache result on second call', () => {
