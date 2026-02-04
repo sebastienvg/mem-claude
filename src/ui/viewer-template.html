@@ -73,6 +73,8 @@
       --color-summary-badge-text: #9a6700;
       --color-prompt-badge-bg: rgba(130, 80, 223, 0.12);
       --color-prompt-badge-text: #8250df;
+      --color-agent-badge-bg: rgba(99, 102, 241, 0.12);
+      --color-agent-badge-text: #6366f1;
       --color-observation-badge-bg: rgba(9, 105, 218, 0.12);
       --color-observation-badge-text: #0550ae;
 
@@ -142,6 +144,8 @@
       --color-summary-badge-text: #d4b888;
       --color-prompt-badge-bg: rgba(142, 124, 188, 0.15);
       --color-prompt-badge-text: #9e8ccc;
+      --color-agent-badge-bg: rgba(129, 140, 248, 0.15);
+      --color-agent-badge-text: #a5b4fc;
       --color-observation-badge-bg: rgba(121, 184, 255, 0.15);
       --color-observation-badge-text: #79b8ff;
 
@@ -212,6 +216,8 @@
         --color-summary-badge-text: #9a6700;
         --color-prompt-badge-bg: rgba(130, 80, 223, 0.12);
         --color-prompt-badge-text: #8250df;
+        --color-agent-badge-bg: rgba(99, 102, 241, 0.12);
+        --color-agent-badge-text: #6366f1;
         --color-observation-badge-bg: rgba(9, 105, 218, 0.12);
         --color-observation-badge-text: #0550ae;
 
@@ -282,6 +288,8 @@
         --color-summary-badge-text: #f2cc60;
         --color-prompt-badge-bg: rgba(110, 64, 201, 0.125);
         --color-prompt-badge-text: #8e6cdb;
+        --color-agent-badge-bg: rgba(129, 140, 248, 0.15);
+        --color-agent-badge-text: #a5b4fc;
         --color-observation-badge-bg: rgba(121, 184, 255, 0.15);
         --color-observation-badge-text: #79b8ff;
 
@@ -1041,6 +1049,22 @@
     /* Project badge styling */
     .card-project {
       color: var(--color-text-muted);
+    }
+
+    /* Agent badge styling */
+    .card-agent {
+      padding: 2px 8px;
+      background: var(--color-agent-badge-bg);
+      color: var(--color-agent-badge-text);
+      border-radius: 3px;
+      font-weight: 500;
+      font-size: 11px;
+      font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+    }
+
+    .card-agent .visibility-icon {
+      margin-left: 4px;
+      font-size: 10px;
     }
 
     .summary-card {

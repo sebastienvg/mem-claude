@@ -14,6 +14,9 @@ export interface Observation {
   prompt_number: number | null;
   created_at: string;
   created_at_epoch: number;
+  agent: string | null;
+  department: string | null;
+  visibility: string | null;
 }
 
 export interface Summary {

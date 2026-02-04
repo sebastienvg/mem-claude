@@ -52,6 +52,18 @@ export function ObservationCard({ observation }: ObservationCardProps) {
           <span className={`card-type type-${observation.type}`}>
             {observation.type}
           </span>
+          {observation.agent && (
+            <span className="card-agent" title={`Agent: ${observation.agent}${observation.department ? ` (${observation.department})` : ''}`}>
+              {observation.agent}
+              {observation.visibility && observation.visibility !== 'project' && (
+                <span className="visibility-icon">
+                  {observation.visibility === 'private' ? '🔒' :
+                   observation.visibility === 'department' ? '👥' :
+                   observation.visibility === 'public' ? '🌍' : ''}
+                </span>
+              )}
+            </span>
+          )}
           <span className="card-project">{observation.project}</span>
         </div>
         <div className="view-mode-toggles">
