@@ -18,7 +18,10 @@ function getRecencyDays(): number {
  */
 export const SEARCH_CONSTANTS = {
   get RECENCY_WINDOW_DAYS() { return getRecencyDays(); },
-  get RECENCY_WINDOW_MS() { return getRecencyDays() * 24 * 60 * 60 * 1000; },
+  get RECENCY_WINDOW_MS() {
+    const days = getRecencyDays();
+    return days === 0 ? Infinity : days * 24 * 60 * 60 * 1000;
+  },
   DEFAULT_LIMIT: 20,
   CHROMA_BATCH_SIZE: 100
 } as const;
