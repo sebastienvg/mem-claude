@@ -66,6 +66,8 @@ export interface SettingsDefaults {
   CLAUDE_MEM_AGENT_KEY_EXPIRY_DAYS: string;
   CLAUDE_MEM_AGENT_LOCKOUT_DURATION: string;
   CLAUDE_MEM_AGENT_MAX_FAILED_ATTEMPTS: string;
+  // Search Configuration
+  CLAUDE_MEM_SEARCH_RECENCY_DAYS: string;
 }
 
 export class SettingsDefaultsManager {
@@ -126,6 +128,8 @@ export class SettingsDefaultsManager {
     CLAUDE_MEM_AGENT_KEY_EXPIRY_DAYS: '90',
     CLAUDE_MEM_AGENT_LOCKOUT_DURATION: '300',
     CLAUDE_MEM_AGENT_MAX_FAILED_ATTEMPTS: '5',
+    // Search Configuration
+    CLAUDE_MEM_SEARCH_RECENCY_DAYS: '90',
   };
 
   /**
