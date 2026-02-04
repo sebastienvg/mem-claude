@@ -231,6 +231,38 @@ NEVER fetch full details without filtering first. 10x token savings.`,
     handler: async (args: any) => {
       return await callWorkerAPIPost('/api/observations/batch', args);
     }
+  },
+  {
+    name: 'save',
+    description: 'Save observation to memory. Params: title (required), text (required), type, project, memory_session_id, facts[], concepts[], agent, department, visibility',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Observation title' },
+        text: { type: 'string', description: 'Observation content/narrative' },
+        type: {
+          type: 'string',
+          enum: ['decision', 'bugfix', 'feature', 'refactor', 'discovery', 'change'],
+          description: 'Observation type (default: discovery)'
+        },
+        project: { type: 'string', description: 'Project name (default: manual)' },
+        memory_session_id: { type: 'string', description: 'Session ID for grouping related saves' },
+        facts: { type: 'array', items: { type: 'string' }, description: 'Key facts' },
+        concepts: { type: 'array', items: { type: 'string' }, description: 'Related concepts' },
+        agent: { type: 'string', description: 'Agent identifier (default: legacy)' },
+        department: { type: 'string', description: 'Department name (default: default)' },
+        visibility: {
+          type: 'string',
+          enum: ['private', 'department', 'project', 'public'],
+          description: 'Visibility level (default: project)'
+        }
+      },
+      required: ['title', 'text'],
+      additionalProperties: true
+    },
+    handler: async (args: any) => {
+      return await callWorkerAPIPost('/api/save', args);
+    }
   }
 ];
 
