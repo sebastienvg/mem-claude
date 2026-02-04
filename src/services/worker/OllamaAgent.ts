@@ -457,13 +457,10 @@ export async function isOllamaAvailable(): Promise<boolean> {
 
 /**
  * Check if Ollama is the selected provider
- * Checks env var first (for container deployments), then settings file
+ * Uses loadFromFile which now properly prioritizes: env var > file > default
  */
 export function isOllamaSelected(): boolean {
-  // Check env var first for container deployments
-  if (process.env.CLAUDE_MEM_PROVIDER) {
-    return process.env.CLAUDE_MEM_PROVIDER === 'ollama';
-  }
+  // loadFromFile handles env var priority internally
   const settings = SettingsDefaultsManager.loadFromFile(USER_SETTINGS_PATH);
   return settings.CLAUDE_MEM_PROVIDER === 'ollama';
 }
