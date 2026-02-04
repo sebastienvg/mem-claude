@@ -120,6 +120,56 @@ docker pull registry.evthings.space/mem-claude/claude-mem:latest
 docker compose up -d
 ```
 
+## MCP Script Sync
+
+When running Docker with the MCP server on the host, the MCP script must stay
+in sync with the container version. Docker Compose handles this automatically.
+
+### Automatic (Docker Compose)
+
+If using the `docker-compose.yml` from this repo, the MCP script is
+automatically synced to `./plugin/scripts/mcp-server.cjs` on every container
+start. Point your MCP config at this path:
+
+```json
+{
+  "mcpServers": {
+    "claude-mem": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/path/to/claude-mem/plugin/scripts/mcp-server.cjs"],
+      "env": {
+        "CLAUDE_MEM_WORKER_URL": "http://localhost:37777"
+      }
+    }
+  }
+}
+```
+
+### Manual (docker run)
+
+Mount a directory for the MCP script and it will be auto-synced:
+
+```bash
+docker run -d \
+  --name claude-mem \
+  -p 37777:37777 \
+  -v ~/.claude-mem:/data \
+  -v /path/to/mcp-scripts:/host-plugin \
+  registry.evthings.space/mem-claude/claude-mem:latest
+```
+
+Then configure Claude Code to use `/path/to/mcp-scripts/mcp-server.cjs`.
+
+### After updating the Docker image
+
+```bash
+docker pull registry.evthings.space/mem-claude/claude-mem:latest
+docker compose up -d
+# MCP script synced automatically on startup
+# Restart Claude Code to pick up new tools
+```
+
 ## Troubleshooting
 
 ### Container won't start

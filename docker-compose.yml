@@ -8,6 +8,7 @@ services:
       - "${CLAUDE_MEM_WORKER_PORT:-37777}:37777"
     volumes:
       - claude-mem-data:/data
+      - ./plugin/scripts:/host-plugin
     environment:
       - CLAUDE_MEM_DATA_DIR=/data
       - CLAUDE_MEM_WORKER_HOST=0.0.0.0
