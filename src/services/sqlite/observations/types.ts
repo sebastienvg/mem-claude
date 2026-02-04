@@ -5,6 +5,16 @@
 import { logger } from '../../../utils/logger.js';
 
 /**
+ * Valid visibility levels for observations and summaries
+ */
+export type VisibilityLevel = 'private' | 'department' | 'project' | 'public';
+
+/**
+ * Valid visibility values for validation
+ */
+export const VALID_VISIBILITIES: VisibilityLevel[] = ['private', 'department', 'project', 'public'];
+
+/**
  * Input type for storeObservation function
  */
 export interface ObservationInput {
@@ -16,6 +26,10 @@ export interface ObservationInput {
   concepts: string[];
   files_read: string[];
   files_modified: string[];
+  // Multi-agent metadata (optional, defaults provided)
+  agent?: string;
+  department?: string;
+  visibility?: VisibilityLevel;
 }
 
 /**

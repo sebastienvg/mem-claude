@@ -59,6 +59,13 @@ export interface SettingsDefaults {
   // Feature Toggles
   CLAUDE_MEM_CONTEXT_SHOW_LAST_SUMMARY: string;
   CLAUDE_MEM_CONTEXT_SHOW_LAST_MESSAGE: string;
+  // Git Remote Settings
+  CLAUDE_MEM_GIT_REMOTE_PREFERENCE: string;
+  // Agent Settings
+  CLAUDE_MEM_AGENT_DEFAULT_VISIBILITY: string;
+  CLAUDE_MEM_AGENT_KEY_EXPIRY_DAYS: string;
+  CLAUDE_MEM_AGENT_LOCKOUT_DURATION: string;
+  CLAUDE_MEM_AGENT_MAX_FAILED_ATTEMPTS: string;
 }
 
 export class SettingsDefaultsManager {
@@ -112,6 +119,13 @@ export class SettingsDefaultsManager {
     // Feature Toggles
     CLAUDE_MEM_CONTEXT_SHOW_LAST_SUMMARY: 'true',
     CLAUDE_MEM_CONTEXT_SHOW_LAST_MESSAGE: 'false',
+    // Git Remote Settings
+    CLAUDE_MEM_GIT_REMOTE_PREFERENCE: 'origin,upstream',
+    // Agent Settings
+    CLAUDE_MEM_AGENT_DEFAULT_VISIBILITY: 'project',
+    CLAUDE_MEM_AGENT_KEY_EXPIRY_DAYS: '90',
+    CLAUDE_MEM_AGENT_LOCKOUT_DURATION: '300',
+    CLAUDE_MEM_AGENT_MAX_FAILED_ATTEMPTS: '5',
   };
 
   /**

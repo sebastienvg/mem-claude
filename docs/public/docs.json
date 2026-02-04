@@ -71,6 +71,8 @@
         "icon": "gear",
         "pages": [
           "configuration",
+          "multi-agent",
+          "api-reference",
           "modes",
           "development",
           "troubleshooting",

@@ -6,10 +6,29 @@
 import { Database } from 'bun:sqlite';
 import { logger } from '../../../utils/logger.js';
 import type { ObservationInput, StoreObservationResult } from './types.js';
+import { VALID_VISIBILITIES } from './types.js';
+
+/**
+ * Validate visibility value
+ * @throws Error if visibility is invalid
+ */
+function validateVisibility(visibility?: string): void {
+  if (visibility && !VALID_VISIBILITIES.includes(visibility as any)) {
+    throw new Error(`Invalid visibility: ${visibility}. Must be one of: ${VALID_VISIBILITIES.join(', ')}`);
+  }
+}
 
 /**
  * Store an observation (from SDK parsing)
  * Assumes session already exists (created by hook)
+ *
+ * @param db - Database instance
+ * @param memorySessionId - SDK memory session ID
+ * @param project - Project name
+ * @param observation - Observation data including optional agent metadata
+ * @param promptNumber - Optional prompt number
+ * @param discoveryTokens - Token count for discovery (default 0)
+ * @param overrideTimestampEpoch - Optional timestamp override for backlog processing
  */
 export function storeObservation(
   db: Database,
@@ -20,6 +39,14 @@ export function storeObservation(
   discoveryTokens: number = 0,
   overrideTimestampEpoch?: number
 ): StoreObservationResult {
+  // Validate visibility if provided
+  validateVisibility(observation.visibility);
+
+  // Use defaults for agent metadata if not provided
+  const agent = observation.agent ?? 'legacy';
+  const department = observation.department ?? 'default';
+  const visibility = observation.visibility ?? 'project';
+
   // Use override timestamp if provided (for processing backlog messages with original timestamps)
   const timestampEpoch = overrideTimestampEpoch ?? Date.now();
   const timestampIso = new Date(timestampEpoch).toISOString();
@@ -27,8 +54,9 @@ export function storeObservation(
   const stmt = db.prepare(`
     INSERT INTO observations
     (memory_session_id, project, type, title, subtitle, facts, narrative, concepts,
-     files_read, files_modified, prompt_number, discovery_tokens, created_at, created_at_epoch)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     files_read, files_modified, prompt_number, discovery_tokens, agent, department, visibility,
+     created_at, created_at_epoch)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const result = stmt.run(
@@ -44,6 +72,9 @@ export function storeObservation(
     JSON.stringify(observation.files_modified),
     promptNumber || null,
     discoveryTokens,
+    agent,
+    department,
+    visibility,
     timestampIso,
     timestampEpoch
   );

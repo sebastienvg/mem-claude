@@ -1,0 +1,231 @@
+---
+title: "Multi-Agent Architecture"
+description: "Share memories across multiple Claude agents with visibility controls"
+---
+
+# Multi-Agent Architecture
+
+Claude-mem supports multiple agents sharing a memory database with visibility controls. Each agent has a unique identifier, department assignment, and API key for authentication.
+
+## Overview
+
+The multi-agent system enables:
+
+- **Shared Memory**: Multiple Claude instances can access the same observation database
+- **Visibility Controls**: Fine-grained access control (private, department, project, public)
+- **Secure Authentication**: API key-based auth with O(1) lookup performance
+- **Brute-Force Protection**: Automatic lockout after failed authentication attempts
+- **Key Lifecycle**: Rotation, expiration, and revocation support
+
+## Agent Identity
+
+Agents are identified using the format `user@host`:
+
+```
+seb@laptop
+ci-bot@github-actions
+review-agent@server-01
+```
+
+This format ensures unique identification across machines and deployments.
+
+## Agent Lifecycle
+
+### 1. Register
+
+Register a new agent to receive an API key:
+
+```bash
+curl -X POST http://localhost:37777/api/agents/register \
+  -H "Content-Type: application/json" \
+  -d '{"id": "seb@laptop", "department": "engineering"}'
+```
+
+Response:
+```json
+{
+  "success": true,
+  "agent": {
+    "id": "seb@laptop",
+    "department": "engineering",
+    "permissions": "read,write"
+  },
+  "apiKey": "cm_abc123..."
+}
+```
+
+<Warning>
+  Save the API key immediately. It is only shown once during registration.
+</Warning>
+
+### 2. Verify
+
+Verify an agent's API key to mark it as verified:
+
+```bash
+curl -X POST http://localhost:37777/api/agents/verify \
+  -H "Content-Type: application/json" \
+  -d '{"id": "seb@laptop", "apiKey": "cm_abc123..."}'
+```
+
+### 3. Use
+
+Include the API key in subsequent requests:
+
+```bash
+curl http://localhost:37777/api/agents/me \
+  -H "Authorization: Bearer cm_abc123..."
+```
+
+### 4. Rotate Key
+
+Generate a new API key (invalidates the old one):
+
+```bash
+curl -X POST http://localhost:37777/api/agents/rotate-key \
+  -H "Authorization: Bearer cm_abc123..."
+```
+
+### 5. Revoke Key
+
+Permanently revoke the current API key:
+
+```bash
+curl -X POST http://localhost:37777/api/agents/revoke \
+  -H "Authorization: Bearer cm_abc123..."
+```
+
+## Visibility Levels
+
+Observations can have different visibility levels controlling who can access them:
+
+| Level | Who Can See | Use Case |
+|-------|-------------|----------|
+| `private` | Only the creating agent | Personal notes, sensitive data |
+| `department` | All agents in the same department | Team-specific knowledge |
+| `project` | All agents with access to the project | Shared project context |
+| `public` | All agents | Organization-wide knowledge |
+
+### Default Visibility
+
+The default visibility level is controlled by the `CLAUDE_MEM_AGENT_DEFAULT_VISIBILITY` setting:
+
+```json
+{
+  "CLAUDE_MEM_AGENT_DEFAULT_VISIBILITY": "project"
+}
+```
+
+## Security
+
+### API Key Best Practices
+
+<Warning>
+  Never commit API keys to version control.
+</Warning>
+
+- Store keys in environment variables or secure credential storage
+- Keys expire after 90 days by default (configurable via `CLAUDE_MEM_AGENT_KEY_EXPIRY_DAYS`)
+- Rotate keys regularly using the `/api/agents/rotate-key` endpoint
+- Revoke compromised keys immediately
+
+### Key Format
+
+API keys use the format `cm_<base64url>`:
+- Prefix `cm_` identifies claude-mem keys
+- First 12 characters are indexed for O(1) lookup
+- Full key is SHA-256 hashed for secure storage
+
+### Brute-Force Protection
+
+Claude-mem implements automatic lockout protection:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `CLAUDE_MEM_AGENT_MAX_FAILED_ATTEMPTS` | `5` | Failed attempts before lockout |
+| `CLAUDE_MEM_AGENT_LOCKOUT_DURATION` | `300` | Lockout duration in seconds |
+
+After 5 failed authentication attempts, the agent is locked out for 5 minutes. All authentication events are logged to the audit table.
+
+### Audit Logging
+
+All security events are logged:
+
+- Agent registration
+- Verification success/failure
+- Key rotation
+- Key revocation
+- Lockout events
+- Key expiration
+
+Query audit logs directly:
+
+```sql
+SELECT * FROM audit_log
+WHERE agent_id = 'seb@laptop'
+ORDER BY created_at_epoch DESC
+LIMIT 50;
+```
+
+## Configuration
+
+### Agent-Related Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `CLAUDE_MEM_AGENT_DEFAULT_VISIBILITY` | `project` | Default observation visibility |
+| `CLAUDE_MEM_AGENT_KEY_EXPIRY_DAYS` | `90` | Days until API keys expire |
+| `CLAUDE_MEM_AGENT_LOCKOUT_DURATION` | `300` | Lockout seconds after failed auth |
+| `CLAUDE_MEM_AGENT_MAX_FAILED_ATTEMPTS` | `5` | Auth attempts before lockout |
+
+Example configuration:
+
+```json
+{
+  "CLAUDE_MEM_AGENT_DEFAULT_VISIBILITY": "department",
+  "CLAUDE_MEM_AGENT_KEY_EXPIRY_DAYS": "30",
+  "CLAUDE_MEM_AGENT_LOCKOUT_DURATION": "600",
+  "CLAUDE_MEM_AGENT_MAX_FAILED_ATTEMPTS": "3"
+}
+```
+
+## Database Schema
+
+### Agents Table
+
+```sql
+CREATE TABLE agents (
+  id TEXT PRIMARY KEY,              -- user@host format
+  department TEXT NOT NULL,
+  permissions TEXT DEFAULT 'read,write',
+  api_key_prefix TEXT,              -- First 12 chars for O(1) lookup
+  api_key_hash TEXT,                -- SHA-256 hash of full key
+  verified INTEGER DEFAULT 0,
+  failed_attempts INTEGER DEFAULT 0,
+  locked_until_epoch INTEGER,
+  created_at TEXT,
+  last_seen_at TEXT,
+  expires_at TEXT,
+  expires_at_epoch INTEGER
+);
+```
+
+### Audit Log Table
+
+```sql
+CREATE TABLE audit_log (
+  id INTEGER PRIMARY KEY,
+  agent_id TEXT NOT NULL,
+  action TEXT NOT NULL,
+  details TEXT,                     -- JSON
+  ip_address TEXT,
+  created_at TEXT,
+  created_at_epoch INTEGER
+);
+```
+
+## Next Steps
+
+- [API Reference](/api-reference) - Full endpoint documentation
+- [Configuration](/configuration) - All settings reference
+- [Troubleshooting](/troubleshooting) - Common issues
