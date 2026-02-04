@@ -8,8 +8,11 @@ mkdir -p "$CLAUDE_MEM_DATA_DIR/vector-db"
 mkdir -p "$CLAUDE_MEM_DATA_DIR/modes"
 
 # Validate required environment (warn, don't fail - allows read-only mode)
-if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$CLAUDE_MEM_GEMINI_API_KEY" ] && [ -z "$CLAUDE_MEM_OPENROUTER_API_KEY" ]; then
-    echo "WARNING: No AI provider API key set. Memory compression will be disabled."
+# Ollama doesn't require an API key, so skip the warning if Ollama is selected
+if [ "$CLAUDE_MEM_PROVIDER" != "ollama" ]; then
+    if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$CLAUDE_MEM_GEMINI_API_KEY" ] && [ -z "$CLAUDE_MEM_OPENROUTER_API_KEY" ]; then
+        echo "WARNING: No AI provider API key set. Memory compression will be disabled."
+    fi
 fi
 
 # Handle signals for graceful shutdown
