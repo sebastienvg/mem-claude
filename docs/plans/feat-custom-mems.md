@@ -48,10 +48,14 @@ app.post('/api/save', this.handleSaveObservation.bind(this));
 /**
  * Save a manual observation
  * POST /api/save
- * Body: { title, text, type?, project?, facts?, concepts?, files_read?, files_modified?, agent?, department?, visibility? }
+ * Body: { title, text, type?, project?, facts?, concepts?, files_read?, files_modified?,
+ *         memory_session_id?, agent?, department?, visibility? }
  */
 private handleSaveObservation = this.wrapHandler((req: Request, res: Response): void => {
-  const { title, text, type, project, facts, concepts, files_read, files_modified, agent, department, visibility } = req.body;
+  const {
+    title, text, type, project, facts, concepts, files_read, files_modified,
+    memory_session_id, agent, department, visibility
+  } = req.body;
 
   // Validate required fields
   if (!title || typeof title !== 'string') {
@@ -65,7 +69,7 @@ private handleSaveObservation = this.wrapHandler((req: Request, res: Response): 
 
   // Map to ObservationInput
   const observation: ObservationInput = {
-    type: type || 'note',
+    type: type || 'discovery',  // Default to 'discovery' (valid type per observation-metadata.ts)
     title: title,
     subtitle: null,
     facts: Array.isArray(facts) ? facts : [],
@@ -78,8 +82,9 @@ private handleSaveObservation = this.wrapHandler((req: Request, res: Response): 
     visibility: visibility
   };
 
-  // Generate unique memory session ID for manual observations
-  const memorySessionId = `mcp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  // Use provided session ID or generate unique one for manual observations
+  // Allows grouping related saves under same session
+  const memorySessionId = memory_session_id || `mcp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const projectName = project || 'manual';
 
   const result = storeObservation(
@@ -92,6 +97,7 @@ private handleSaveObservation = this.wrapHandler((req: Request, res: Response): 
   res.json({
     success: true,
     id: result.id,
+    memory_session_id: memorySessionId,
     created_at_epoch: result.createdAtEpoch
   });
 });
@@ -105,7 +111,7 @@ private handleSaveObservation = this.wrapHandler((req: Request, res: Response): 
 ,
 {
   name: 'save',
-  description: 'Save observation to memory. Params: title (required), text (required), type, project, facts[], concepts[]',
+  description: 'Save observation to memory. Params: title (required), text (required), type, project, memory_session_id, facts[], concepts[], agent, department, visibility',
   inputSchema: {
     type: 'object',
     properties: {
@@ -113,12 +119,21 @@ private handleSaveObservation = this.wrapHandler((req: Request, res: Response): 
       text: { type: 'string', description: 'Observation content/narrative' },
       type: {
         type: 'string',
-        enum: ['decision', 'bugfix', 'feature', 'refactor', 'discovery', 'note'],
-        description: 'Observation type'
+        enum: ['decision', 'bugfix', 'feature', 'refactor', 'discovery', 'change'],
+        description: 'Observation type (default: discovery)'
       },
       project: { type: 'string', description: 'Project name (default: manual)' },
+      memory_session_id: { type: 'string', description: 'Session ID for grouping related saves' },
       facts: { type: 'array', items: { type: 'string' }, description: 'Key facts' },
-      concepts: { type: 'array', items: { type: 'string' }, description: 'Related concepts' }
+      concepts: { type: 'array', items: { type: 'string' }, description: 'Related concepts' },
+      // Multi-agent fields
+      agent: { type: 'string', description: 'Agent identifier (default: legacy)' },
+      department: { type: 'string', description: 'Department name (default: default)' },
+      visibility: {
+        type: 'string',
+        enum: ['private', 'department', 'project', 'public'],
+        description: 'Visibility level (default: project)'
+      }
     },
     required: ['title', 'text'],
     additionalProperties: true
@@ -158,13 +173,16 @@ POST /api/save
 ### Validation
 - `title`: Required, string
 - `text`: Required, string
-- `type`: Optional, defaults to "note", must be one of: decision, bugfix, feature, refactor, discovery, note
+- `type`: Optional, defaults to "discovery", must be one of: decision, bugfix, feature, refactor, discovery, change
 - `project`: Optional, defaults to "manual"
+- `memory_session_id`: Optional, string - use to group related observations under same session
 - `facts`: Optional, array of strings
 - `concepts`: Optional, array of strings
 - `files_read`: Optional, array of strings
 - `files_modified`: Optional, array of strings
-- Multi-agent fields (agent, department, visibility): Optional, passed through
+- `agent`: Optional, defaults to "legacy"
+- `department`: Optional, defaults to "default"
+- `visibility`: Optional, defaults to "project", must be one of: private, department, project, public
 
 ## Verification
 
@@ -180,14 +198,14 @@ POST /api/save
 
 3. **Test HTTP endpoint directly**:
    ```bash
-   # Basic save
+   # Basic save (defaults to type: discovery)
    curl -X POST http://localhost:37777/api/save \
      -H "Content-Type: application/json" \
-     -d '{"title":"Test observation","text":"This is a test","type":"note"}'
+     -d '{"title":"Test observation","text":"This is a test"}'
 
-   # Expected: {"success":true,"id":123,"created_at_epoch":1707123456789}
+   # Expected: {"success":true,"id":123,"memory_session_id":"mcp-...","created_at_epoch":1707123456789}
 
-   # Full save with all fields
+   # Full save with all fields including multi-agent
    curl -X POST http://localhost:37777/api/save \
      -H "Content-Type: application/json" \
      -d '{
@@ -195,8 +213,12 @@ POST /api/save
        "text":"External API limits requests to 100/min. Implemented exponential backoff.",
        "type":"discovery",
        "project":"my-project",
+       "memory_session_id":"research-session-001",
        "facts":["API limit is 100 req/min","Backoff delay starts at 1s"],
-       "concepts":["rate-limiting","exponential-backoff"]
+       "concepts":["rate-limiting","exponential-backoff"],
+       "agent":"research-agent",
+       "department":"engineering",
+       "visibility":"project"
      }'
    ```
 
@@ -208,13 +230,21 @@ POST /api/save
 5. **Verify in viewer UI**: Check http://localhost:37777 for new observation
 
 6. **Test MCP tool** (restart Claude Code after build to pick up new tool):
-   - Use the `save` tool: `save(title="Test", text="Content", type="note")`
+   - Use the `save` tool: `save(title="Test", text="Content", type="discovery")`
+   - Group related saves: `save(title="Part 2", text="More content", memory_session_id="my-session")`
    - Verify with `search(query="Test")`
 
 ## Summary
 
 - Add imports to DataRoutes.ts (2 lines)
 - Add route registration (1 line)
-- Add handler method (~45 lines)
-- Add MCP tool definition (~25 lines)
-- **Total: ~75 lines of code**
+- Add handler method (~50 lines)
+- Add MCP tool definition (~30 lines)
+- **Total: ~85 lines of code**
+
+## Design Notes
+
+1. **Type defaults to 'discovery'** - Valid types are defined in `src/constants/observation-metadata.ts`: bugfix, feature, refactor, discovery, decision, change
+2. **memory_session_id enables grouping** - Callers can pass the same session ID to group related observations
+3. **Response includes memory_session_id** - Allows callers to capture the generated ID for follow-up saves
+4. **Multi-agent fields are fully exposed** - agent, department, visibility available in MCP schema for team scenarios
