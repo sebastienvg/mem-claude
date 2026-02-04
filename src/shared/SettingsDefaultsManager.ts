@@ -61,6 +61,8 @@ export interface SettingsDefaults {
   CLAUDE_MEM_CONTEXT_SHOW_LAST_MESSAGE: string;
   // Git Remote Settings
   CLAUDE_MEM_GIT_REMOTE_PREFERENCE: string;
+  // Observation Quality Controls
+  CLAUDE_MEM_VERBOSITY: string;
   // Agent Settings
   CLAUDE_MEM_AGENT_DEFAULT_VISIBILITY: string;
   CLAUDE_MEM_AGENT_KEY_EXPIRY_DAYS: string;
@@ -123,6 +125,8 @@ export class SettingsDefaultsManager {
     CLAUDE_MEM_CONTEXT_SHOW_LAST_MESSAGE: 'false',
     // Git Remote Settings
     CLAUDE_MEM_GIT_REMOTE_PREFERENCE: 'origin,upstream',
+    // Observation Quality Controls
+    CLAUDE_MEM_VERBOSITY: 'standard',
     // Agent Settings
     CLAUDE_MEM_AGENT_DEFAULT_VISIBILITY: 'project',
     CLAUDE_MEM_AGENT_KEY_EXPIRY_DAYS: '90',
