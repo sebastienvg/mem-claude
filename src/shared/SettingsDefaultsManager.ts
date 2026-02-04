@@ -115,10 +115,19 @@ export class SettingsDefaultsManager {
   };
 
   /**
-   * Get all defaults as an object
+   * Get all defaults as an object, with environment variable overrides
+   * This ensures container environment variables always take precedence
    */
   static getAllDefaults(): SettingsDefaults {
-    return { ...this.DEFAULTS };
+    const result: SettingsDefaults = { ...this.DEFAULTS };
+    // Apply environment variable overrides (critical for containers)
+    for (const key of Object.keys(this.DEFAULTS) as Array<keyof SettingsDefaults>) {
+      const envValue = process.env[key];
+      if (envValue !== undefined) {
+        result[key] = envValue;
+      }
+    }
+    return result;
   }
 
   /**
@@ -193,10 +202,14 @@ export class SettingsDefaultsManager {
         }
       }
 
-      // Merge file settings with defaults (flat schema)
+      // Merge with priority: env var > file > default
       const result: SettingsDefaults = { ...this.DEFAULTS };
       for (const key of Object.keys(this.DEFAULTS) as Array<keyof SettingsDefaults>) {
-        if (flatSettings[key] !== undefined) {
+        // Environment variable has highest priority (critical for containers)
+        const envValue = process.env[key];
+        if (envValue !== undefined) {
+          result[key] = envValue;
+        } else if (flatSettings[key] !== undefined) {
           result[key] = flatSettings[key];
         }
       }
@@ -204,7 +217,15 @@ export class SettingsDefaultsManager {
       return result;
     } catch (error) {
       console.warn('[SETTINGS] Failed to load settings, using defaults:', settingsPath, error);
-      return this.getAllDefaults();
+      // Even on error, check env vars before falling back to defaults
+      const result: SettingsDefaults = { ...this.DEFAULTS };
+      for (const key of Object.keys(this.DEFAULTS) as Array<keyof SettingsDefaults>) {
+        const envValue = process.env[key];
+        if (envValue !== undefined) {
+          result[key] = envValue;
+        }
+      }
+      return result;
     }
   }
 }
