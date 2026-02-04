@@ -17,6 +17,8 @@ import { SessionManager } from '../../SessionManager.js';
 import { SSEBroadcaster } from '../../SSEBroadcaster.js';
 import type { WorkerService } from '../../../worker-service.js';
 import { BaseRouteHandler } from '../BaseRouteHandler.js';
+import { storeObservation } from '../../../sqlite/observations/store.js';
+import type { ObservationInput } from '../../../sqlite/observations/types.js';
 
 export class DataRoutes extends BaseRouteHandler {
   constructor(
@@ -59,6 +61,9 @@ export class DataRoutes extends BaseRouteHandler {
 
     // Import endpoint
     app.post('/api/import', this.handleImport.bind(this));
+
+    // Manual observation save endpoint
+    app.post('/api/save', this.handleSaveObservation.bind(this));
   }
 
   /**
@@ -459,6 +464,79 @@ export class DataRoutes extends BaseRouteHandler {
     res.json({
       success: true,
       clearedCount
+    });
+  });
+
+  /**
+   * Save a manual observation
+   * POST /api/save
+   * Body: { title, text, type?, project?, facts?, concepts?, files_read?, files_modified?,
+   *         memory_session_id?, agent?, department?, visibility? }
+   */
+  private handleSaveObservation = this.wrapHandler((req: Request, res: Response): void => {
+    const {
+      title, text, type, project, facts, concepts, files_read, files_modified,
+      memory_session_id, agent, department, visibility
+    } = req.body;
+
+    // Validate required fields
+    if (!title || typeof title !== 'string') {
+      this.badRequest(res, 'title is required and must be a string');
+      return;
+    }
+    if (!text || typeof text !== 'string') {
+      this.badRequest(res, 'text is required and must be a string');
+      return;
+    }
+
+    // Map to ObservationInput
+    const observation: ObservationInput = {
+      type: type || 'discovery',
+      title: title,
+      subtitle: null,
+      facts: Array.isArray(facts) ? facts : [],
+      narrative: text,
+      concepts: Array.isArray(concepts) ? concepts : [],
+      files_read: Array.isArray(files_read) ? files_read : [],
+      files_modified: Array.isArray(files_modified) ? files_modified : [],
+      agent: agent,
+      department: department,
+      visibility: visibility
+    };
+
+    // Use provided session ID or generate unique one for manual observations
+    const memorySessionId = memory_session_id || `mcp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const projectName = project || 'manual';
+
+    const db = this.dbManager.getSessionStore().db;
+
+    // Ensure an sdk_session exists for this memory_session_id (FK constraint)
+    const existingSession = db.prepare(
+      'SELECT id FROM sdk_sessions WHERE memory_session_id = ?'
+    ).get(memorySessionId);
+
+    if (!existingSession) {
+      const contentSessionId = `manual-${memorySessionId}`;
+      const now = new Date();
+      db.prepare(`
+        INSERT OR IGNORE INTO sdk_sessions
+        (content_session_id, memory_session_id, project, user_prompt, started_at, started_at_epoch, status)
+        VALUES (?, ?, ?, ?, ?, ?, 'active')
+      `).run(contentSessionId, memorySessionId, projectName, 'Manual save via API', now.toISOString(), now.getTime());
+    }
+
+    const result = storeObservation(
+      db,
+      memorySessionId,
+      projectName,
+      observation
+    );
+
+    res.json({
+      success: true,
+      id: result.id,
+      memory_session_id: memorySessionId,
+      created_at_epoch: result.createdAtEpoch
     });
   });
 }
