@@ -90,18 +90,22 @@ git worktree add ../worktrees/<sub-task> -b <parent>/<sub-task>
 - Remove worktrees before running tests (Bun discovers test files recursively)
 - After merging sub-agent work, clean up: `git worktree remove`
 
-## Tmux Rules
-
-### NEVER write to a busy session
-Always verify the agent is idle before sending keys. Check for:
-- Shell prompt (`$`, `%`) at the end of the pane → agent finished
-- Claude Code prompt → agent waiting for input
-- Spinner/progress text → agent is **busy**, DO NOT send keys
+### Agent Status Detection
+Use `agentspaces/agent-status.sh <name>` to check if an agent is idle or busy:
+- Exit 0 = idle (safe to send), Exit 1 = busy (do NOT send)
+- Or use `dispatch.sh` which checks automatically and waits with `--wait`
+- NEVER use raw `tmux send-keys` — always use `dispatch.sh`
 
 ### Monitoring agents
 - `tmux capture-pane -t agent-<name> -p -S -50` — see recent output
 - `git log --oneline -10` in the agent's repo — verify commits
 - Agents can hallucinate commit hashes — always verify with actual git commands
+
+## TASK.md Protocol
+- Write TASK.md to agent workspace BEFORE dispatching
+- After agent reads TASK.md, it DELETES it immediately: `rm TASK.md`
+- If TASK.md still exists when you check an agent workspace, the previous dispatch was not consumed
+- Always overwrite — the agent is expected to have deleted it after reading
 
 ## Memory & Knowledge
 
