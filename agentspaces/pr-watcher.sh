@@ -12,6 +12,8 @@ set -euo pipefail
 POLL_INTERVAL=60
 DRY_RUN=false
 ONCE=false
+MAX_RETRIES=${PR_WATCHER_MAX_RETRIES:-3}
+FAILED_PRS=""  # colon-separated "number:count" pairs
 
 # --- Parse args ---
 while [[ $# -gt 0 ]]; do
@@ -54,6 +56,33 @@ fi
 log() {
     local level="$1"; shift
     printf "[%s] %-6s %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" "$level" "$*"
+}
+
+# --- Verify GitHub CLI auth ---
+if ! gh auth status >/dev/null 2>&1; then
+    log ERROR "gh CLI not authenticated. Run 'gh auth login' first."
+    exit 1
+fi
+
+# --- Retry tracking (bash 3.2 compatible) ---
+get_fail_count() {
+    local pr="$1"
+    echo "$FAILED_PRS" | tr ',' '\n' | grep "^${pr}:" | cut -d: -f2 || echo 0
+}
+
+inc_fail_count() {
+    local pr="$1"
+    local current
+    current=$(get_fail_count "$pr")
+    local new=$((current + 1))
+    # Remove old entry and add updated one
+    FAILED_PRS=$(echo "$FAILED_PRS" | tr ',' '\n' | grep -v "^${pr}:" | tr '\n' ',')
+    FAILED_PRS="${FAILED_PRS}${pr}:${new},"
+}
+
+clear_fail_count() {
+    local pr="$1"
+    FAILED_PRS=$(echo "$FAILED_PRS" | tr ',' '\n' | grep -v "^${pr}:" | tr '\n' ',')
 }
 
 # --- Extract bead ID from branch name ---
@@ -115,8 +144,9 @@ comment_on_issues() {
         if $DRY_RUN; then
             log DRY "Would comment on issue #$issue about PR #$pr_number"
         else
-            gh issue comment "$issue" --body "Merged via PR #$pr_number (auto-merged by pr-watcher)" 2>/dev/null || \
-                log WARN "Failed to comment on issue #$issue"
+            local comment_err
+            comment_err=$(gh issue comment "$issue" --body "Merged via PR #$pr_number (auto-merged by pr-watcher)" 2>&1) || \
+                log WARN "Failed to comment on issue #$issue: $comment_err"
         fi
     done
 }
@@ -176,12 +206,23 @@ poll() {
             continue
         fi
 
+        # Check retry limit
+        local fails
+        fails=$(get_fail_count "$number")
+        if [ "$fails" -ge "$MAX_RETRIES" ]; then
+            log SKIP "PR #$number ($bead_id) — skipped after $MAX_RETRIES failed merge attempts"
+            continue
+        fi
+
         # Merge
         if $DRY_RUN; then
             log DRY "Would merge PR #$number ($bead_id) — $title"
         else
-            if gh pr merge "$number" --merge --delete-branch 2>/dev/null; then
+            local merge_output
+            merge_output=$(gh pr merge "$number" --merge --delete-branch 2>&1)
+            if [ $? -eq 0 ]; then
                 log MERGE "PR #$number ($bead_id) — $title"
+                clear_fail_count "$number"
                 # Close the bead
                 if [ -n "$bead_id" ]; then
                     close_bead "$bead_id" "$number"
@@ -192,7 +233,8 @@ poll() {
                 # Stagger merges
                 sleep 5
             else
-                log ERROR "Failed to merge PR #$number ($bead_id)"
+                log ERROR "Failed to merge PR #$number ($bead_id): $merge_output"
+                inc_fail_count "$number"
             fi
         fi
     done
