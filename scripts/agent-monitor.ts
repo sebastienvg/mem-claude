@@ -51,11 +51,12 @@ async function cmdStatus(sessionName: string | null, all: boolean): Promise<void
       console.log('No tmux sessions found.');
       return;
     }
-    console.log('SESSION'.padEnd(30) + 'STATE');
-    console.log('-'.repeat(40));
+    const maxLen = Math.max(7, ...sessions.map(s => s.length)) + 2;
+    console.log('SESSION'.padEnd(maxLen) + 'STATE');
+    console.log('-'.repeat(maxLen + 10));
     for (const s of sessions) {
       const state = getAgentState(s);
-      console.log(s.padEnd(30) + state);
+      console.log(s.padEnd(maxLen) + state);
     }
     return;
   }
