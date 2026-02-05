@@ -378,6 +378,8 @@ You are **${AGENT_NAME}**, a ${AGENT_ROLE} working on the claude-mem project.
 ## Task
 
 Read \`TASK.md\` in your workspace for your current assignment.
+**After reading TASK.md, DELETE it immediately:** \`rm ../TASK.md\`
+This prevents stale instructions from interfering with future dispatches.
 ${AGENT_TASK:+
 > ${AGENT_TASK}
 }

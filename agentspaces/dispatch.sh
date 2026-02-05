@@ -6,9 +6,10 @@
 #        ./dispatch.sh <agent-name> --wait <instruction>
 #
 # Options:
-#   --wait     Wait up to 60s for agent to become idle before sending
-#   --force    Send even if agent appears busy
-#   --file     Read instruction from a file instead of argument
+#   --wait        Wait for agent to become idle before sending (default 60s)
+#   --timeout N   Set wait timeout in seconds (default 60)
+#   --force       Send even if agent appears busy
+#   --file        Read instruction from a file instead of argument
 #
 # Examples:
 #   ./dispatch.sh max "Read TASK.md and execute it."
@@ -23,14 +24,16 @@ shift
 
 WAIT=false
 FORCE=false
+TIMEOUT=60
 INSTRUCTION=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --wait)  WAIT=true; shift ;;
-        --force) FORCE=true; shift ;;
-        --file)  INSTRUCTION=$(cat "$2"); shift 2 ;;
-        *)       INSTRUCTION="$1"; shift ;;
+        --wait)    WAIT=true; shift ;;
+        --timeout) TIMEOUT="$2"; shift 2 ;;
+        --force)   FORCE=true; shift ;;
+        --file)    INSTRUCTION=$(cat "$2"); shift 2 ;;
+        *)         INSTRUCTION="$1"; shift ;;
     esac
 done
 
@@ -50,28 +53,21 @@ if ! tmux has-session -t "$SESSION" 2>/dev/null; then
 fi
 
 # --- Check if agent is idle ---
-# Claude Code layout: prompt line (❯) sits ABOVE the status bar + permission line.
-# We scan the last ~6 lines for prompt indicators rather than just the last line.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 is_idle() {
-    local pane
-    pane=$(tmux capture-pane -t "$SESSION" -p -S -6)
-    # Look for Claude Code prompt (❯), shell prompt ($, %, ❯), or INSERT mode
-    # Exclude lines that are clearly spinners/progress (Cogitating, Running, thinking)
-    if echo "$pane" | grep -qE '(Cogitating|Running\.\.\.|Running…|thinking|✻\.\.\.)'; then
-        return 1
-    fi
-    echo "$pane" | grep -qE '(^❯|^  ❯|[$%]\s*$|-- INSERT --)'
+    "$SCRIPT_DIR/agent-status.sh" "$AGENT" >/dev/null 2>&1
 }
 
 if [ "$WAIT" = true ]; then
     echo -n "Waiting for ${SESSION} to be idle..."
-    for i in $(seq 1 60); do
+    for i in $(seq 1 $TIMEOUT); do
         if is_idle; then
             echo " ready (${i}s)"
             break
         fi
-        if [ "$i" -eq 60 ]; then
-            echo " TIMEOUT after 60s"
+        if [ "$i" -eq "$TIMEOUT" ]; then
+            echo " TIMEOUT after ${TIMEOUT}s"
             if [ "$FORCE" != true ]; then
                 echo "  Use --force to send anyway"
                 exit 1

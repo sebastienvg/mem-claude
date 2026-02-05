@@ -40,6 +40,8 @@ sleep 0.3
 tmux send-keys -t agent-max C-m
 ```
 
+**Note:** TASK.md is ephemeral. Max deletes it after reading. If it still exists from a previous dispatch, it was not consumed — overwrite is safe.
+
 ## Task Tracking (Beads)
 
 Track work using `bd` (beads), a git-backed issue tracker shared across all agents.
