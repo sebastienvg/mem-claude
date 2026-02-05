@@ -466,8 +466,10 @@ On your first message, verify your environment is working:
 4. **Report status**: Briefly confirm all checks pass before starting work.
 5. **Beads**: Run \`bd list\` to confirm beads is connected.
    - If it fails, check \`.beads\` is symlinked to the shared bead repo.
-6. **Registration**: Run \`curl -s ${WORKER_URL}/api/agents/me -H "Authorization: Bearer \$(cat .claude/.agent-key)" | jq .\`
+6. **Registration**: Confirm you are registered (auto-registered on launch):
+   \`curl -s ${WORKER_URL}/api/agents/me -H "Authorization: Bearer \$(cat .claude/.agent-key)" | jq .\`
    - Should return your agent profile.
+   - If this fails, register manually: \`curl -X POST ${WORKER_URL}/api/agents/register -H 'Content-Type: application/json' -d '{"id": "${AGENT_NAME}@\$(hostname -s)", "department": "engineering"}'\`
 
 ## Rules
 
