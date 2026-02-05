@@ -10,6 +10,7 @@
 
 import { SessionStore } from '../sqlite/SessionStore.js';
 import { SessionSearch } from '../sqlite/SessionSearch.js';
+import { MigrationRunner } from '../sqlite/migrations/runner.js';
 import { ChromaSync } from '../sync/ChromaSync.js';
 import { logger } from '../../utils/logger.js';
 import type { DBSession } from '../worker-types.js';
@@ -25,6 +26,11 @@ export class DatabaseManager {
   async initialize(): Promise<void> {
     // Open database connection (ONCE)
     this.sessionStore = new SessionStore();
+
+    // Run formal migrations via MigrationRunner (uses same db connection)
+    const migrationRunner = new MigrationRunner(this.sessionStore.db);
+    migrationRunner.runAllMigrations();
+
     this.sessionSearch = new SessionSearch();
 
     // Initialize ChromaSync (lazy - connects on first search, not at startup)
