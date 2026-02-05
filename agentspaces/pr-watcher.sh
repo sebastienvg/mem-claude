@@ -9,7 +9,7 @@
 set -euo pipefail
 
 # --- Defaults ---
-POLL_INTERVAL=60
+POLL_INTERVAL=120
 DRY_RUN=false
 ONCE=false
 MAX_RETRIES=${PR_WATCHER_MAX_RETRIES:-3}
