@@ -39,6 +39,9 @@ export class SearchRoutes extends BaseRouteHandler {
     app.get('/api/context/preview', this.handleContextPreview.bind(this));
     app.get('/api/context/inject', this.handleContextInject.bind(this));
 
+    // Memory bridge endpoints
+    app.get('/api/memory/briefing', this.handleMemoryBriefing.bind(this));
+
     // Timeline and help endpoints
     app.get('/api/timeline/by-query', this.handleGetTimelineByQuery.bind(this));
     app.get('/api/search/help', this.handleSearchHelp.bind(this));
@@ -242,6 +245,15 @@ export class SearchRoutes extends BaseRouteHandler {
     // Return as plain text
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.send(contextText);
+  });
+
+  /**
+   * Get compact observation summaries for MEMORY.md briefing.
+   * GET /api/memory/briefing?project=...&limit=50
+   */
+  private handleMemoryBriefing = this.wrapHandler(async (req: Request, res: Response): Promise<void> => {
+    const result = await this.searchManager.getMemoryBriefing(req.query);
+    res.json(result);
   });
 
   /**
