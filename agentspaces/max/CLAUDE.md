@@ -60,6 +60,10 @@ cat > /Users/seb/AI/mem-claude/agentspaces/<name>/TASK.md << 'EOF'
 ## Context
 <relevant files, architecture notes, constraints>
 
+## Protocol Reminder
+Write SPEC.md and tests BEFORE any implementation code.
+Your task is not complete until all spec criteria are met and all tests pass.
+
 ## Scope
 <what's in scope, what's NOT in scope>
 EOF
@@ -155,6 +159,15 @@ On your first message, verify your environment is working:
    - If it fails, check `.beads/redirect` exists in your repo dir.
 6. **Registration**: Run `curl -s http://localhost:37777/api/agents/me -H "Authorization: Bearer $(cat .claude/.agent-key)" | jq .`
    - Should return your agent profile.
+
+## Completion Validation
+
+Before closing a bead, verify:
+- [ ] SPEC.md exists in agent workspace
+- [ ] Tests exist and pass
+- [ ] All spec acceptance criteria are met
+- [ ] PR references the bead ID
+- [ ] GH issue commented (if applicable)
 
 ## Rules
 

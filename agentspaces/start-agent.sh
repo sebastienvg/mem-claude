@@ -375,6 +375,32 @@ ${AGENT_TASK:+
 > ${AGENT_TASK}
 }
 
+## Development Protocol
+
+**Spec first, tests first, code last.**
+
+Before writing ANY implementation code, you MUST:
+
+1. **Write SPEC.md** in your workspace root (\`<workspace>/SPEC.md\`):
+   - What you're building (one paragraph)
+   - Acceptance criteria (numbered list, measurable)
+   - Edge cases and error handling
+   - Files you expect to create or modify
+
+2. **Write tests** that validate every acceptance criterion:
+   - Tests go in the project's existing test directory/pattern
+   - Tests MUST fail before implementation (red phase)
+   - Run tests to confirm they fail: document the output
+
+3. **Implement** until all tests pass (green phase)
+
+4. **Verify** all acceptance criteria from SPEC.md are met
+
+A task is NOT complete until:
+- All spec criteria are fulfilled
+- All tests pass
+- SPEC.md exists in your workspace
+
 ## Git Workflow
 
 **CRITICAL: Never commit to or push to main/master.**
