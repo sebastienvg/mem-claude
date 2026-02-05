@@ -36,6 +36,9 @@ export interface Agent {
   last_seen_at: string | null;
   expires_at: string | null;
   expires_at_epoch: number | null;
+  spawned_by?: string | null;
+  bead_id?: string | null;
+  role?: string | null;
 }
 
 /**
@@ -67,6 +70,9 @@ export interface RegisterAgentInput {
   id: string;
   department: string;
   permissions?: string;
+  spawned_by?: string;
+  bead_id?: string;
+  role?: string;
 }
 
 /**
@@ -144,13 +150,27 @@ export class AgentService {
     const nowEpoch = Math.floor(Date.now() / 1000);
 
     if (existing) {
-      // Update last_seen_at for existing agent
+      // Update last_seen_at and lineage fields for existing agent
+      const updates = ['last_seen_at = ?', 'last_seen_at_epoch = ?'];
+      const params: any[] = [now, nowEpoch];
+
+      if (reg.spawned_by !== undefined) {
+        updates.push('spawned_by = ?');
+        params.push(reg.spawned_by);
+      }
+      if (reg.bead_id !== undefined) {
+        updates.push('bead_id = ?');
+        params.push(reg.bead_id);
+      }
+      if (reg.role !== undefined) {
+        updates.push('role = ?');
+        params.push(reg.role);
+      }
+
+      params.push(reg.id);
       this.db.run(
-        `
-        UPDATE agents SET last_seen_at = ?, last_seen_at_epoch = ?
-        WHERE id = ?
-      `,
-        [now, nowEpoch, reg.id]
+        `UPDATE agents SET ${updates.join(', ')} WHERE id = ?`,
+        params
       );
       this.audit(reg.id, 'agent_seen');
       return { agent: this.getAgent(reg.id)! };
@@ -168,8 +188,9 @@ export class AgentService {
       `
       INSERT INTO agents (
         id, department, permissions, api_key_prefix, api_key_hash,
-        last_seen_at, last_seen_at_epoch, expires_at, expires_at_epoch
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        last_seen_at, last_seen_at_epoch, expires_at, expires_at_epoch,
+        spawned_by, bead_id, role
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
       [
         reg.id,
@@ -181,6 +202,9 @@ export class AgentService {
         nowEpoch,
         expiresAt,
         expiresEpoch,
+        reg.spawned_by ?? null,
+        reg.bead_id ?? null,
+        reg.role ?? null,
       ]
     );
 

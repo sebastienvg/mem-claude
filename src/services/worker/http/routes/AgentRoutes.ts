@@ -64,15 +64,18 @@ export class AgentRoutes extends BaseRouteHandler {
   private handleRegister = this.wrapHandler((req: Request, res: Response): void => {
     if (!this.validateRequired(req, res, ['id', 'department'])) return;
 
-    const { id, department, permissions } = req.body;
+    const { id, department, permissions, spawned_by, bead_id, role } = req.body;
 
     try {
-      const result = this.agentService.registerAgent({ id, department, permissions });
+      const result = this.agentService.registerAgent({ id, department, permissions, spawned_by, bead_id, role });
       res.json({
         id: result.agent.id,
         ...(result.apiKey && { apiKey: result.apiKey }),
         department: result.agent.department,
         ...(result.agent.expires_at && { expiresAt: result.agent.expires_at }),
+        ...(result.agent.spawned_by && { spawned_by: result.agent.spawned_by }),
+        ...(result.agent.bead_id && { bead_id: result.agent.bead_id }),
+        ...(result.agent.role && { role: result.agent.role }),
       });
     } catch (error) {
       if (error instanceof AgentIdFormatError) {
