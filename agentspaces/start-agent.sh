@@ -2,7 +2,7 @@
 # Generic launcher for any agent in the mem-claude project
 # Creates workspace, clones repo, checks out branch, and starts Claude in tmux
 #
-# Usage: ./start-agent.sh <agent-name> [--role <role>] [--task <task>] [--branch <branch>] [--ephemeral] [--bead <bead-id>]
+# Usage: ./start-agent.sh <agent-name> [--role <role>] [--task <task>] [--branch <branch>] [--ephemeral] [--bead <bead-id>] [--continue|-c]
 # Example: ./start-agent.sh davinci --role "Senior Engineer" --branch "davinci/statusline" --task "Build statusline"
 #          ./start-agent.sh review-bot --ephemeral --role "Code Reviewer"
 #          ./start-agent.sh my-agent --bead bd-1cc --role "Shell Developer"  # produces agent name bd-1cc-shell
@@ -19,6 +19,7 @@ AGENT_TASK=""
 AGENT_LIFECYCLE="perm"
 AGENT_BRANCH=""
 BEAD_ID=""
+CONTINUE_SESSION=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --role) AGENT_ROLE="$2"; shift 2 ;;
@@ -26,6 +27,7 @@ while [[ $# -gt 0 ]]; do
         --branch) AGENT_BRANCH="$2"; shift 2 ;;
         --ephemeral) AGENT_LIFECYCLE="ephemeral"; shift ;;
         --bead) BEAD_ID="$2"; shift 2 ;;
+        --continue|-c) CONTINUE_SESSION=true; shift ;;
         *) break ;;
     esac
 done
@@ -54,6 +56,11 @@ if [[ -n "${BEAD_ID}" ]]; then
     AGENT_BRANCH="${AGENT_BRANCH:-${AGENT_NAME}/${BEAD_ID}}"
     # Auto-set ephemeral
     AGENT_LIFECYCLE="ephemeral"
+fi
+
+if [ "$CONTINUE_SESSION" = true ] && [ "$AGENT_LIFECYCLE" = "ephemeral" ]; then
+    echo "Error: --continue/-c only works for permanent agents (not ephemeral)"
+    exit 1
 fi
 
 AGENT_DIR="${PROJECT_ROOT}/agentspaces/${AGENT_NAME}"
@@ -429,6 +436,13 @@ if [ ! -f "$AGENT_CLAUDE_MD" ]; then
     cp "$CLAUDE_MD" "$AGENT_CLAUDE_MD"
 fi
 
+CLAUDE_RESUME_FLAG=""
+if [ "$CONTINUE_SESSION" = true ]; then
+    # claude --resume picks up the most recent conversation automatically
+    CLAUDE_RESUME_FLAG="--resume"
+    echo "Resuming previous conversation for ${AGENT_NAME}"
+fi
+
 # --- Create tmux session and start Claude ---
 if tmux has-session -t "$TMUX_SESSION" 2>/dev/null; then
     echo "tmux session '${TMUX_SESSION}' already exists"
@@ -443,7 +457,7 @@ tmux new-session -d -s "$TMUX_SESSION" -c "$REPO_DIR"
 # Set CLAUDE_CONFIG_DIR in the tmux session and start Claude
 # NOTE: cd to REPO_DIR so Claude works in the agent's own clone.
 tmux send-keys -t "$TMUX_SESSION" \
-    "export CLAUDE_CONFIG_DIR='${CLAUDE_DIR}' AGENT_LIFECYCLE='${AGENT_LIFECYCLE}' AGENT_SPAWNER='${AGENT_NAME}' BEADS_NO_DAEMON=1 BEADS_DIR='${BEAD_REPO_DIR}/.beads' && cd '${REPO_DIR}' && echo 'Starting ${AGENT_NAME} on branch ${AGENT_BRANCH}...' && claude --dangerously-skip-permissions" Enter
+    "export CLAUDE_CONFIG_DIR='${CLAUDE_DIR}' AGENT_LIFECYCLE='${AGENT_LIFECYCLE}' AGENT_SPAWNER='${AGENT_NAME}' BEADS_NO_DAEMON=1 BEADS_DIR='${BEAD_REPO_DIR}/.beads' && cd '${REPO_DIR}' && echo 'Starting ${AGENT_NAME} on branch ${AGENT_BRANCH}...' && claude --dangerously-skip-permissions ${CLAUDE_RESUME_FLAG}" Enter
 
 echo ""
 echo "Agent '${AGENT_NAME}' launched!"
