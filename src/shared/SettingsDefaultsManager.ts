@@ -70,6 +70,8 @@ export interface SettingsDefaults {
   CLAUDE_MEM_AGENT_MAX_FAILED_ATTEMPTS: string;
   // Search Configuration
   CLAUDE_MEM_SEARCH_RECENCY_DAYS: string;
+  // Auto Memory Bridge
+  CLAUDE_MEM_AUTO_MEMORY: string;  // 'enabled' | 'disabled'
 }
 
 export class SettingsDefaultsManager {
@@ -134,6 +136,8 @@ export class SettingsDefaultsManager {
     CLAUDE_MEM_AGENT_MAX_FAILED_ATTEMPTS: '5',
     // Search Configuration
     CLAUDE_MEM_SEARCH_RECENCY_DAYS: '90',
+    // Auto Memory Bridge
+    CLAUDE_MEM_AUTO_MEMORY: 'enabled',
   };
 
   /**
