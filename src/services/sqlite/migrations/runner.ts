@@ -33,6 +33,7 @@ export class MigrationRunner {
     this.addFailedAtEpochColumn();
     this.createMultiAgentTables();
     this.createProjectAliasesTable();
+    this.addAgentLineageColumns();
   }
 
   /**
@@ -911,5 +912,31 @@ export class MigrationRunner {
     this.db.prepare('INSERT OR IGNORE INTO schema_versions (version, applied_at) VALUES (?, ?)').run(22, new Date().toISOString());
 
     logger.debug('DB', 'project_aliases table created successfully');
+  }
+
+  /**
+   * Add agent lineage columns to agents table (migration 23)
+   *
+   * Adds spawned_by, bead_id, and role columns to track which agent
+   * spawned another, which bead (task) they're working on, and their role.
+   */
+  private addAgentLineageColumns(): void {
+    const applied = this.db.prepare('SELECT version FROM schema_versions WHERE version = ?').get(23) as SchemaVersion | undefined;
+    if (applied) return;
+
+    const tableInfo = this.db.query('PRAGMA table_info(agents)').all() as TableColumnInfo[];
+    const hasSpawnedBy = tableInfo.some(col => col.name === 'spawned_by');
+
+    if (!hasSpawnedBy) {
+      this.db.run("ALTER TABLE agents ADD COLUMN spawned_by TEXT");
+      this.db.run("ALTER TABLE agents ADD COLUMN bead_id TEXT");
+      this.db.run("ALTER TABLE agents ADD COLUMN role TEXT");
+      this.db.run('CREATE INDEX IF NOT EXISTS idx_agents_spawned_by ON agents(spawned_by)');
+      this.db.run('CREATE INDEX IF NOT EXISTS idx_agents_bead_id ON agents(bead_id)');
+
+      logger.debug('DB', 'Added spawned_by, bead_id, role columns to agents table');
+    }
+
+    this.db.prepare('INSERT OR IGNORE INTO schema_versions (version, applied_at) VALUES (?, ?)').run(23, new Date().toISOString());
   }
 }
