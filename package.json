@@ -87,7 +87,8 @@
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f worker",
-    "docker:reset": "docker compose down -v"
+    "docker:reset": "docker compose down -v",
+    "agent:monitor": "bun scripts/agent-monitor.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.1.76",

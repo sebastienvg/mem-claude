@@ -5,6 +5,7 @@
 
 import { logger } from '../utils/logger.js';
 import type { ModeConfig } from '../services/domain/types.js';
+import { SettingsDefaultsManager } from '../shared/SettingsDefaultsManager.js';
 
 export interface Observation {
   id: number;
@@ -21,6 +22,18 @@ export interface SDKSession {
   project: string;
   user_prompt: string;
   last_assistant_message?: string;
+}
+
+function getVerbosityInstruction(): string {
+  const verbosity = SettingsDefaultsManager.get('CLAUDE_MEM_VERBOSITY');
+  switch (verbosity) {
+    case 'minimal':
+      return `\nVERBOSITY: minimal\nWrite 1-2 sentence narratives. Keep facts to 2-3 bullet points max. Skip context that can be inferred from the title. Optimize for token efficiency.\n`;
+    case 'detailed':
+      return `\nVERBOSITY: detailed\nWrite rich context in narratives: include rationale, alternatives considered, and implications. Extract 4-6 facts per observation. Capture nuance that would help future sessions understand not just what happened but why.\n`;
+    default:
+      return '';
+  }
 }
 
 /**
@@ -79,7 +92,7 @@ ${mode.prompts.output_format_header}
 </observation>
 \`\`\`
 ${mode.prompts.format_examples}
-
+${getVerbosityInstruction()}
 ${mode.prompts.footer}
 
 ${mode.prompts.header_memory_start}`;
@@ -227,7 +240,7 @@ ${mode.prompts.output_format_header}
 </observation>
 \`\`\`
 ${mode.prompts.format_examples}
-
+${getVerbosityInstruction()}
 ${mode.prompts.footer}
 
 ${mode.prompts.header_memory_continued}`;

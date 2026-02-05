@@ -15,6 +15,13 @@ if [ "$CLAUDE_MEM_PROVIDER" != "ollama" ]; then
     fi
 fi
 
+# Sync MCP server script to host if volume mounted
+if [ -d "/host-plugin" ]; then
+    echo "Syncing MCP server script to host volume..."
+    cp /app/plugin/scripts/mcp-server.cjs /host-plugin/mcp-server.cjs
+    echo "MCP script synced. Restart Claude Code to pick up changes."
+fi
+
 # Handle signals for graceful shutdown
 trap 'echo "Shutting down..."; kill -TERM $PID 2>/dev/null; wait $PID 2>/dev/null' SIGTERM SIGINT
 

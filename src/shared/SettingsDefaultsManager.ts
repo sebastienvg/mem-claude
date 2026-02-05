@@ -61,11 +61,17 @@ export interface SettingsDefaults {
   CLAUDE_MEM_CONTEXT_SHOW_LAST_MESSAGE: string;
   // Git Remote Settings
   CLAUDE_MEM_GIT_REMOTE_PREFERENCE: string;
+  // Observation Quality Controls
+  CLAUDE_MEM_VERBOSITY: string;
   // Agent Settings
   CLAUDE_MEM_AGENT_DEFAULT_VISIBILITY: string;
   CLAUDE_MEM_AGENT_KEY_EXPIRY_DAYS: string;
   CLAUDE_MEM_AGENT_LOCKOUT_DURATION: string;
   CLAUDE_MEM_AGENT_MAX_FAILED_ATTEMPTS: string;
+  // Search Configuration
+  CLAUDE_MEM_SEARCH_RECENCY_DAYS: string;
+  // Auto Memory Bridge
+  CLAUDE_MEM_AUTO_MEMORY: string;  // 'enabled' | 'disabled'
 }
 
 export class SettingsDefaultsManager {
@@ -121,11 +127,17 @@ export class SettingsDefaultsManager {
     CLAUDE_MEM_CONTEXT_SHOW_LAST_MESSAGE: 'false',
     // Git Remote Settings
     CLAUDE_MEM_GIT_REMOTE_PREFERENCE: 'origin,upstream',
+    // Observation Quality Controls
+    CLAUDE_MEM_VERBOSITY: 'standard',
     // Agent Settings
     CLAUDE_MEM_AGENT_DEFAULT_VISIBILITY: 'project',
     CLAUDE_MEM_AGENT_KEY_EXPIRY_DAYS: '90',
     CLAUDE_MEM_AGENT_LOCKOUT_DURATION: '300',
     CLAUDE_MEM_AGENT_MAX_FAILED_ATTEMPTS: '5',
+    // Search Configuration
+    CLAUDE_MEM_SEARCH_RECENCY_DAYS: '90',
+    // Auto Memory Bridge
+    CLAUDE_MEM_AUTO_MEMORY: 'enabled',
   };
 
   /**

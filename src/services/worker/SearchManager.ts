@@ -1846,4 +1846,36 @@ export class SearchManager {
       };
     }
   }
+
+  /**
+   * Get compact observation summaries for MEMORY.md briefing.
+   * Returns title, type, and formatted time for recent observations.
+   */
+  async getMemoryBriefing(args: any): Promise<{ project: string; observations: Array<{ title: string; type: string; time: string }> }> {
+    const project = args.project as string;
+    if (!project) {
+      return { project: '', observations: [] };
+    }
+
+    const limit = parseInt(args.limit as string, 10) || 50;
+
+    try {
+      const results = this.sessionSearch.searchObservations(undefined, {
+        project,
+        limit,
+        orderBy: 'date_desc',
+      });
+
+      const observations = results.map(o => ({
+        title: o.title || 'Untitled observation',
+        type: o.type || 'discovery',
+        time: new Date(o.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+      }));
+
+      return { project, observations };
+    } catch (error) {
+      logger.error('SEARCH', 'Failed to get memory briefing', { project }, error as Error);
+      return { project, observations: [] };
+    }
+  }
 }

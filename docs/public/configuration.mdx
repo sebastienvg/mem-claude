@@ -20,6 +20,8 @@ Settings are managed in `~/.claude-mem/settings.json`. The file is auto-created 
 | `CLAUDE_MEM_WORKER_PORT`      | `37777`                         | Worker service port                   |
 | `CLAUDE_MEM_WORKER_HOST`      | `127.0.0.1`                     | Worker service host address           |
 | `CLAUDE_MEM_SKIP_TOOLS`       | `ListMcpResourcesTool,SlashCommand,Skill,TodoWrite,AskUserQuestion` | Comma-separated tools to exclude from observations |
+| `CLAUDE_MEM_VERBOSITY`        | `standard`                      | Observation detail level: `minimal`, `standard`, `detailed` |
+| `CLAUDE_MEM_SEARCH_RECENCY_DAYS` | `90`                         | Days of history visible to vector search (0 = unlimited) |
 
 ### Git Remote Settings
 
@@ -283,6 +285,40 @@ Claude-mem can automatically generate `CLAUDE.md` files in your project folders 
 | `CLAUDE_MEM_FOLDER_CLAUDEMD_ENABLED` | `false` | Enable auto-generation of folder CLAUDE.md files |
 
 See [Folder Context Files](usage/folder-context) for full documentation on how this feature works, configuration options, and git integration recommendations.
+
+## Observation Quality
+
+Control how much detail the AI observer captures per tool execution.
+
+### Verbosity Levels
+
+| Level | Narrative Length | Facts | Best For |
+|-------|-----------------|-------|----------|
+| `minimal` | 1-2 sentences | 2-3 | Routine coding, low token budget |
+| `standard` | 3-5 sentences | 3-5 | General development (default) |
+| `detailed` | Full paragraphs | 4-6 | Research, architecture, debugging |
+
+```json
+{
+  "CLAUDE_MEM_VERBOSITY": "detailed"
+}
+```
+
+Changes take effect on the next observation (no worker restart needed).
+
+### Search Recency
+
+By default, vector search only returns results from the last 90 days.
+For long-running projects, increase this:
+
+```json
+{
+  "CLAUDE_MEM_SEARCH_RECENCY_DAYS": "365"
+}
+```
+
+Set to `0` to disable the recency filter entirely (search all history).
+Requires worker restart.
 
 ## Context Injection Configuration
 

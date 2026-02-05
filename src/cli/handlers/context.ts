@@ -3,11 +3,16 @@
  *
  * Extracted from context-hook.ts - calls worker to generate context.
  * Returns context as hookSpecificOutput for Claude Code to inject.
+ * Also writes a briefing to Claude Code's auto memory MEMORY.md.
  */
 
 import type { EventHandler, NormalizedHookInput, HookResult } from '../types.js';
 import { ensureWorkerRunning, getWorkerUrl } from '../../shared/worker-utils.js';
 import { getProjectContext } from '../../utils/project-name.js';
+import { getAutoMemoryFilePath } from '../../utils/auto-memory-path.js';
+import { buildBriefingContent, writeMemoryBriefing } from '../../utils/memory-briefing.js';
+import { SettingsDefaultsManager } from '../../shared/SettingsDefaultsManager.js';
+import { USER_SETTINGS_PATH } from '../../shared/paths.js';
 
 export const contextHandler: EventHandler = {
   async execute(input: NormalizedHookInput): Promise<HookResult> {
@@ -32,6 +37,23 @@ export const contextHandler: EventHandler = {
 
     const result = await response.text();
     const additionalContext = result.trim();
+
+    // Write briefing to Claude Code's auto memory MEMORY.md (if enabled)
+    const settings = SettingsDefaultsManager.loadFromFile(USER_SETTINGS_PATH);
+    if (settings.CLAUDE_MEM_AUTO_MEMORY !== 'disabled') {
+      try {
+        const briefingUrl = `${baseUrl}/api/memory/briefing?project=${encodeURIComponent(context.primary)}`;
+        const briefingResponse = await fetch(briefingUrl);
+        if (briefingResponse.ok) {
+          const briefingData = await briefingResponse.json() as { project: string; observations: Array<{ title: string; type: string; time: string }> };
+          const briefing = buildBriefingContent(context.primary, briefingData.observations);
+          const memoryPath = getAutoMemoryFilePath(cwd);
+          writeMemoryBriefing(memoryPath, briefing);
+        }
+      } catch {
+        // Fire-and-forget: don't fail SessionStart over memory briefing
+      }
+    }
 
     return {
       hookSpecificOutput: {

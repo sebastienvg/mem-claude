@@ -4,16 +4,24 @@
  */
 
 import type { ObservationSearchResult, SessionSummarySearchResult, UserPromptSearchResult, SearchOptions, DateRange } from '../../sqlite/types.js';
+import { SettingsDefaultsManager } from '../../../shared/SettingsDefaultsManager.js';
 
 // Re-export base types for convenience
 export type { ObservationSearchResult, SessionSummarySearchResult, UserPromptSearchResult, SearchOptions, DateRange };
+
+function getRecencyDays(): number {
+  return SettingsDefaultsManager.getInt('CLAUDE_MEM_SEARCH_RECENCY_DAYS');
+}
 
 /**
  * Constants used across search strategies
  */
 export const SEARCH_CONSTANTS = {
-  RECENCY_WINDOW_DAYS: 90,
-  RECENCY_WINDOW_MS: 90 * 24 * 60 * 60 * 1000,
+  get RECENCY_WINDOW_DAYS() { return getRecencyDays(); },
+  get RECENCY_WINDOW_MS() {
+    const days = getRecencyDays();
+    return days === 0 ? Infinity : days * 24 * 60 * 60 * 1000;
+  },
   DEFAULT_LIMIT: 20,
   CHROMA_BATCH_SIZE: 100
 } as const;
