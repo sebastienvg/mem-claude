@@ -2,14 +2,15 @@
 # Generic launcher for any agent in the mem-claude project
 # Creates workspace, clones repo, checks out branch, and starts Claude in tmux
 #
-# Usage: ./start-agent.sh <agent-name> [--role <role>] [--task <task>] [--branch <branch>] [--ephemeral]
+# Usage: ./start-agent.sh <agent-name> [--role <role>] [--task <task>] [--branch <branch>] [--ephemeral] [--bead <bead-id>]
 # Example: ./start-agent.sh davinci --role "Senior Engineer" --branch "davinci/statusline" --task "Build statusline"
 #          ./start-agent.sh review-bot --ephemeral --role "Code Reviewer"
+#          ./start-agent.sh my-agent --bead bd-1cc --role "Shell Developer"  # produces agent name bd-1cc-shell
 
 set -euo pipefail
 
 PROJECT_ROOT="/Users/seb/AI/mem-claude"
-AGENT_NAME="${1:?Usage: $0 <agent-name> [--role <role>] [--task <task>] [--branch <branch>] [--ephemeral]}"
+AGENT_NAME="${1:?Usage: $0 <agent-name> [--role <role>] [--task <task>] [--branch <branch>] [--ephemeral] [--bead <bead-id>]}"
 shift
 
 # Parse optional flags
@@ -17,15 +18,43 @@ AGENT_ROLE="Development Agent"
 AGENT_TASK=""
 AGENT_LIFECYCLE="perm"
 AGENT_BRANCH=""
+BEAD_ID=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --role) AGENT_ROLE="$2"; shift 2 ;;
         --task) AGENT_TASK="$2"; shift 2 ;;
         --branch) AGENT_BRANCH="$2"; shift 2 ;;
         --ephemeral) AGENT_LIFECYCLE="ephemeral"; shift ;;
+        --bead) BEAD_ID="$2"; shift 2 ;;
         *) break ;;
     esac
 done
+
+# --- Auto-derive agent name from bead + role ---
+role_to_suffix() {
+    local role
+    role=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+    case "$role" in
+        *typescript*|*ts*) echo "ts" ;;
+        *shell*) echo "shell" ;;
+        *database*|*db*|*migration*) echo "db" ;;
+        *qa*|*test*|*verif*) echo "qa" ;;
+        *doc*) echo "docs" ;;
+        *review*) echo "review" ;;
+        *frontend*|*ui*|*fe*) echo "fe" ;;
+        *plan*) echo "plan" ;;
+        *) echo "dev" ;;
+    esac
+}
+
+if [[ -n "${BEAD_ID}" ]]; then
+    ROLE_SUFFIX=$(role_to_suffix "$AGENT_ROLE")
+    AGENT_NAME="${BEAD_ID}-${ROLE_SUFFIX}"
+    # Auto-set branch if not provided
+    AGENT_BRANCH="${AGENT_BRANCH:-${AGENT_NAME}/${BEAD_ID}}"
+    # Auto-set ephemeral
+    AGENT_LIFECYCLE="ephemeral"
+fi
 
 AGENT_DIR="${PROJECT_ROOT}/agentspaces/${AGENT_NAME}"
 CLAUDE_DIR="${AGENT_DIR}/.claude"
@@ -283,11 +312,12 @@ else
 fi
 
 # --- Register agent with worker service ---
+SPAWNER="${AGENT_SPAWNER:-human}"
 if [ "$HEALTH_OK" = true ]; then
     AGENT_ID="${AGENT_NAME}@$(hostname -s)"
     REG=$(curl -sf -X POST "${WORKER_URL}/api/agents/register" \
       -H "Content-Type: application/json" \
-      -d "{\"id\":\"${AGENT_ID}\",\"department\":\"engineering\"}" 2>/dev/null || echo "")
+      -d "{\"id\":\"${AGENT_ID}\",\"department\":\"engineering\",\"spawned_by\":\"${SPAWNER}\",\"bead_id\":\"${BEAD_ID:-}\",\"role\":\"${AGENT_ROLE}\"}" 2>/dev/null || echo "")
     if [ -n "$REG" ]; then
         API_KEY=$(echo "$REG" | jq -r '.apiKey // empty' 2>/dev/null)
         if [ -n "$API_KEY" ]; then
@@ -413,7 +443,7 @@ tmux new-session -d -s "$TMUX_SESSION" -c "$REPO_DIR"
 # Set CLAUDE_CONFIG_DIR in the tmux session and start Claude
 # NOTE: cd to REPO_DIR so Claude works in the agent's own clone.
 tmux send-keys -t "$TMUX_SESSION" \
-    "export CLAUDE_CONFIG_DIR='${CLAUDE_DIR}' AGENT_LIFECYCLE='${AGENT_LIFECYCLE}' BEADS_NO_DAEMON=1 BEADS_DIR='${BEAD_REPO_DIR}/.beads' && cd '${REPO_DIR}' && echo 'Starting ${AGENT_NAME} on branch ${AGENT_BRANCH}...' && claude --dangerously-skip-permissions" Enter
+    "export CLAUDE_CONFIG_DIR='${CLAUDE_DIR}' AGENT_LIFECYCLE='${AGENT_LIFECYCLE}' AGENT_SPAWNER='${AGENT_NAME}' BEADS_NO_DAEMON=1 BEADS_DIR='${BEAD_REPO_DIR}/.beads' && cd '${REPO_DIR}' && echo 'Starting ${AGENT_NAME} on branch ${AGENT_BRANCH}...' && claude --dangerously-skip-permissions" Enter
 
 echo ""
 echo "Agent '${AGENT_NAME}' launched!"
