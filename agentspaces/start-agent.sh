@@ -158,15 +158,6 @@ if [ ! -d "$BEAD_REPO_DIR/.beads" ]; then
     (cd "$BEAD_REPO_DIR" && git init -q && bd init --quiet --no-daemon && git add .beads/ && git commit -q -m "init beads for ${BEAD_REPO_NAME}")
 fi
 
-# Symlink agent's .beads to the shared bead repo (redirect files don't work in br v0.1.7)
-rm -rf "${REPO_DIR}/.beads"
-ln -sf "${BEAD_REPO_DIR}/.beads" "${REPO_DIR}/.beads"
-
-# Exclude .beads from code repo (don't pollute PRs)
-if ! grep -q "^\.beads/" "${REPO_DIR}/.git/info/exclude" 2>/dev/null; then
-    echo ".beads/" >> "${REPO_DIR}/.git/info/exclude"
-fi
-
 # --- Share auth (keychain + .claude.json) ---
 # Claude Code stores OAuth tokens in macOS Keychain with service name:
 #   "Claude Code-credentials-<SHA256(CLAUDE_CONFIG_DIR)[:8]>"
@@ -305,10 +296,10 @@ fi
 
 # --- Verify beads setup ---
 echo -n "Checking beads... "
-if [ -L "${REPO_DIR}/.beads" ] && [ -d "${BEAD_REPO_DIR}/.beads" ]; then
-    echo "OK (${BEAD_REPO_NAME})"
+if [ -d "${BEAD_REPO_DIR}/.beads" ]; then
+    echo "OK (${BEAD_REPO_NAME} via BEADS_DIR)"
 else
-    echo "WARNING: Beads setup incomplete"
+    echo "WARNING: Beads repo not found at ${BEAD_REPO_DIR}"
 fi
 
 # --- Register agent with worker service ---
@@ -443,7 +434,7 @@ tmux new-session -d -s "$TMUX_SESSION" -c "$REPO_DIR"
 # Set CLAUDE_CONFIG_DIR in the tmux session and start Claude
 # NOTE: cd to REPO_DIR so Claude works in the agent's own clone.
 tmux send-keys -t "$TMUX_SESSION" \
-    "export CLAUDE_CONFIG_DIR='${CLAUDE_DIR}' AGENT_LIFECYCLE='${AGENT_LIFECYCLE}' AGENT_SPAWNER='${AGENT_NAME}' BEADS_NO_DAEMON=1 BEADS_DIR='${BEAD_REPO_DIR}/.beads' && cd '${REPO_DIR}' && echo 'Starting ${AGENT_NAME} on branch ${AGENT_BRANCH}...' && claude --dangerously-skip-permissions" Enter
+    "export CLAUDE_CONFIG_DIR='${CLAUDE_DIR}' AGENT_LIFECYCLE='${AGENT_LIFECYCLE}' AGENT_SPAWNER='${AGENT_NAME}' BEADS_NO_DAEMON=1 BEADS_DIR='${BEAD_REPO_DIR}/.beads' BD_ACTOR='${AGENT_NAME}' && cd '${REPO_DIR}' && echo 'Starting ${AGENT_NAME} on branch ${AGENT_BRANCH}...' && claude --dangerously-skip-permissions" Enter
 
 echo ""
 echo "Agent '${AGENT_NAME}' launched!"
