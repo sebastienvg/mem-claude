@@ -129,9 +129,9 @@ if [ ! -d "$BEAD_REPO_DIR/.beads" ]; then
     (cd "$BEAD_REPO_DIR" && git init -q && bd init --quiet --no-daemon && git add .beads/ && git commit -q -m "init beads for ${BEAD_REPO_NAME}")
 fi
 
-# Redirect agent's repo to the shared bead repo
-mkdir -p "${REPO_DIR}/.beads"
-echo "${BEAD_REPO_DIR}/.beads" > "${REPO_DIR}/.beads/redirect"
+# Symlink agent's .beads to the shared bead repo (redirect files don't work in br v0.1.7)
+rm -rf "${REPO_DIR}/.beads"
+ln -sf "${BEAD_REPO_DIR}/.beads" "${REPO_DIR}/.beads"
 
 # Exclude .beads from code repo (don't pollute PRs)
 if ! grep -q "^\.beads/" "${REPO_DIR}/.git/info/exclude" 2>/dev/null; then
@@ -276,7 +276,7 @@ fi
 
 # --- Verify beads setup ---
 echo -n "Checking beads... "
-if [ -f "${REPO_DIR}/.beads/redirect" ] && [ -d "${BEAD_REPO_DIR}/.beads" ]; then
+if [ -L "${REPO_DIR}/.beads" ] && [ -d "${BEAD_REPO_DIR}/.beads" ]; then
     echo "OK (${BEAD_REPO_NAME})"
 else
     echo "WARNING: Beads setup incomplete"
@@ -379,7 +379,7 @@ On your first message, verify your environment is working:
 3. **Git branch**: Run \`git branch --show-current\` and confirm you are on \`${AGENT_BRANCH}\`, NOT main.
 4. **Report status**: Briefly confirm all checks pass before starting work.
 5. **Beads**: Run \`bd list\` to confirm beads is connected.
-   - If it fails, check \`.beads/redirect\` exists in your repo dir.
+   - If it fails, check \`.beads\` is symlinked to the shared bead repo.
 6. **Registration**: Run \`curl -s ${WORKER_URL}/api/agents/me -H "Authorization: Bearer \$(cat .claude/.agent-key)" | jq .\`
    - Should return your agent profile.
 
