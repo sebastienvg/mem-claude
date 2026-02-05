@@ -648,7 +648,17 @@ export class MigrationRunner {
    */
   private createMultiAgentTables(): void {
     const applied = this.db.prepare('SELECT version FROM schema_versions WHERE version = ?').get(21) as SchemaVersion | undefined;
-    if (applied) return;
+    if (applied) {
+      // Verify columns actually exist (repair stale version records from old duplicate migration)
+      const obsInfo = this.db.query('PRAGMA table_info(observations)').all() as TableColumnInfo[];
+      const obsHasAgent = obsInfo.some(col => col.name === 'agent');
+      if (obsHasAgent) {
+        return; // Properly applied
+      }
+      // Stale version record — delete it and re-run
+      logger.warn('DB', 'Migration 21 recorded but columns missing — repairing');
+      this.db.prepare('DELETE FROM schema_versions WHERE version = ?').run(21);
+    }
 
     logger.debug('DB', 'Creating multi-agent architecture tables');
 
