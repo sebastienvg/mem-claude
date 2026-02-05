@@ -96,6 +96,11 @@ When creating beads linked to GH issues, always include:
 - Explicit instruction that the resolving agent must comment on the issue with resolution details before closing
 - Format: `gh issue close <N> --comment 'Resolved in PR #M. <summary>'`
 
+## How Others Reach You
+- **Human**: direct prompt in your tmux session
+- **Max / Agents**: bead updates only (`bd update <id> --description 'status...'`)
+- Nobody may send tmux keystrokes to your session. Ever. dispatch.sh enforces this.
+
 ## Rules
 
 - **NEVER push to main/master** — always work on your branch

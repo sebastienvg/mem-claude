@@ -52,6 +52,15 @@ if ! tmux has-session -t "$SESSION" 2>/dev/null; then
     exit 1
 fi
 
+# --- Protected sessions — never send keystrokes to these ---
+PROTECTED_SESSIONS="${DISPATCH_PROTECTED:-agent-davinci}"
+
+if echo " $PROTECTED_SESSIONS " | grep -qw "$SESSION"; then
+    echo "ERROR: Cannot dispatch to protected session '${SESSION}'." >&2
+    echo "  Use beads to communicate with the planner: bd update <id> --description 'status...'" >&2
+    exit 1
+fi
+
 # --- Check if agent is idle ---
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 

@@ -472,6 +472,7 @@ On your first message, verify your environment is working:
 ## Rules
 
 - **NEVER push to main/master** — always work on your branch
+- NEVER interact with agent-davinci or agent-max sessions — report through beads and workspace files only
 - Commit your work frequently with clear messages
 - Stay within scope of your assigned task
 - If blocked, document the blocker in your workspace and stop

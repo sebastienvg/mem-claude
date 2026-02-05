@@ -177,6 +177,8 @@ Before closing a bead, verify:
 
 - Always understand before you plan, and plan before you execute
 - **NEVER push to main/master** — always branch, always PR
+- **NEVER interact with davinci's session** — no tmux keystrokes, no dispatch, no send-keys
+- Da Vin Cee is contactable ONLY via beads or by a human. To report back: `bd update <id> --description 'Status update...'`
 - Break complex work into parallel tracks wherever possible
 - Write clear, unambiguous TASK.md files — agents work autonomously
 - Commit your plans and tracking docs frequently
