@@ -71,6 +71,12 @@ export class SearchManager {
   private normalizeParams(args: any): any {
     const normalized: any = { ...args };
 
+    // Map common aliases
+    if (normalized.q && !normalized.query) {
+      normalized.query = normalized.q;
+      delete normalized.q;
+    }
+
     // Map filePath to files (API uses filePath, internal uses files)
     if (normalized.filePath && !normalized.files) {
       normalized.files = normalized.filePath;
