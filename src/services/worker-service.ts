@@ -69,6 +69,8 @@ import { DataRoutes } from './worker/http/routes/DataRoutes.js';
 import { SearchRoutes } from './worker/http/routes/SearchRoutes.js';
 import { SettingsRoutes } from './worker/http/routes/SettingsRoutes.js';
 import { LogsRoutes } from './worker/http/routes/LogsRoutes.js';
+import { AgentRoutes } from './worker/http/routes/AgentRoutes.js';
+import { AgentService } from './agents/AgentService.js';
 
 // Process management for zombie cleanup (Issue #737)
 import { startOrphanReaper, reapOrphanedProcesses } from './worker/ProcessRegistry.js';
@@ -266,6 +268,10 @@ export class WorkerService {
       logger.info('SYSTEM', `Mode loaded: ${modeId}`);
 
       await this.dbManager.initialize();
+
+      // Register agent routes (needs DB to be initialized)
+      const agentService = new AgentService(this.dbManager.getSessionStore().db);
+      this.server.registerRoutes(new AgentRoutes(agentService));
 
       // Recover stuck messages from previous crashes
       const { PendingMessageStore } = await import('./sqlite/PendingMessageStore.js');
