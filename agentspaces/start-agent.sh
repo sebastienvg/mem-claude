@@ -102,15 +102,45 @@ if [ ! -d "$REPO_DIR/.git" ] && [ ! -f "$REPO_DIR/.git" ]; then
     fi
 fi
 
-# --- Install pre-push hook to protect main ---
-HOOK_SRC="${PROJECT_ROOT}/.git/hooks/pre-push"
-HOOK_DST="${REPO_DIR}/.git/hooks/pre-push"
-if [ -f "$HOOK_SRC" ] && [ ! -f "$HOOK_DST" ]; then
-    mkdir -p "${REPO_DIR}/.git/hooks"
-    cp "$HOOK_SRC" "$HOOK_DST"
-    chmod +x "$HOOK_DST"
-    echo "Installed pre-push hook (protects main/master)"
+# --- Install pre-push hook (protect main + auto-rebase) ---
+mkdir -p "${REPO_DIR}/.git/hooks"
+cat > "${REPO_DIR}/.git/hooks/pre-push" << 'HOOKEOF'
+#!/bin/bash
+# Protect main/master from direct pushes
+BRANCH=$(git branch --show-current)
+if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
+    echo "[pre-push] ERROR: Direct push to $BRANCH is blocked. Use a PR."
+    exit 1
 fi
+
+# Auto-rebase on origin/main before pushing
+git fetch origin main --quiet 2>/dev/null
+BEHIND=$(git rev-list HEAD..origin/main --count 2>/dev/null || echo 0)
+if [ "$BEHIND" -gt 0 ]; then
+    echo "[pre-push] Branch is $BEHIND commits behind main. Auto-rebasing..."
+    if ! git rebase origin/main --quiet; then
+        echo "[pre-push] Rebase failed — conflicts detected. Aborting push."
+        git rebase --abort
+        exit 1
+    fi
+    echo "[pre-push] Rebase successful."
+fi
+HOOKEOF
+chmod +x "${REPO_DIR}/.git/hooks/pre-push"
+echo "Installed pre-push hook (protects main + auto-rebase)"
+
+# --- Install post-commit staleness warning ---
+cat > "${REPO_DIR}/.git/hooks/post-commit" << 'HOOKEOF'
+#!/bin/bash
+BEHIND=$(git rev-list HEAD..origin/main --count 2>/dev/null || echo 0)
+if [ "$BEHIND" -gt 0 ]; then
+    echo ""
+    echo "⚠️  WARNING: Your branch is $BEHIND commits behind main."
+    echo "   Run: git rebase origin/main"
+    echo ""
+fi
+HOOKEOF
+chmod +x "${REPO_DIR}/.git/hooks/post-commit"
 
 # --- Ensure beads (bd) is installed ---
 if ! command -v bd >/dev/null 2>&1 && ! command -v br >/dev/null 2>&1; then
@@ -430,6 +460,11 @@ fi
 
 echo "Creating tmux session: ${TMUX_SESSION}"
 tmux new-session -d -s "$TMUX_SESSION" -c "$REPO_DIR"
+
+# Background fetch to keep origin/main fresh
+tmux send-keys -t "$TMUX_SESSION" \
+    "(while true; do git fetch origin main --quiet 2>/dev/null; sleep 60; done) &" Enter
+sleep 0.5
 
 # Set CLAUDE_CONFIG_DIR in the tmux session and start Claude
 # NOTE: cd to REPO_DIR so Claude works in the agent's own clone.
