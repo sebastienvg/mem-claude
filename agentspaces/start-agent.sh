@@ -13,6 +13,19 @@ PROJECT_ROOT="/Users/seb/AI/mem-claude"
 AGENT_NAME="${1:?Usage: $0 <agent-name> [--role <role>] [--task <task>] [--branch <branch>] [--ephemeral] [--bead <bead-id>]}"
 shift
 
+# --- Read agentspace config (runtime command/flags) ---
+AGENTSPACE_CONFIG="${HOME}/.claude-mem/agentspace.json"
+RUNTIME_CMD="claude"
+RUNTIME_FLAGS="--dangerously-skip-permissions"
+if [ -f "$AGENTSPACE_CONFIG" ]; then
+    if command -v jq >/dev/null 2>&1; then
+        _CMD=$(jq -r '.runtimes["claude-code"].command // empty' "$AGENTSPACE_CONFIG" 2>/dev/null)
+        _FLAGS=$(jq -r '.runtimes["claude-code"].flags // empty' "$AGENTSPACE_CONFIG" 2>/dev/null)
+        [ -n "$_CMD" ] && RUNTIME_CMD="$_CMD"
+        [ -n "$_FLAGS" ] && RUNTIME_FLAGS="$_FLAGS"
+    fi
+fi
+
 # Parse optional flags
 AGENT_ROLE="Development Agent"
 AGENT_TASK=""
@@ -556,7 +569,7 @@ CLAUDE_MEM_EXPORTS=""
 # Set CLAUDE_CONFIG_DIR in the tmux session and start Claude
 # NOTE: cd to REPO_DIR so Claude works in the agent's own clone.
 tmux send-keys -t "$TMUX_SESSION" \
-    "export CLAUDE_CONFIG_DIR='${CLAUDE_DIR}' AGENT_LIFECYCLE='${AGENT_LIFECYCLE}' AGENT_SPAWNER='${AGENT_NAME}' BEADS_NO_DAEMON=1 BEADS_DIR='${BEAD_REPO_DIR}/.beads' BD_ACTOR='${AGENT_NAME}' ${BEAD_ID:+CURRENT_BEAD='${BEAD_ID}'}${CLAUDE_MEM_EXPORTS} && cd '${REPO_DIR}' && echo 'Starting ${AGENT_NAME} on branch ${AGENT_BRANCH}...' && claude --dangerously-skip-permissions ${CLAUDE_RESUME_FLAG}" Enter
+    "export CLAUDE_CONFIG_DIR='${CLAUDE_DIR}' AGENT_LIFECYCLE='${AGENT_LIFECYCLE}' AGENT_SPAWNER='${AGENT_NAME}' BEADS_NO_DAEMON=1 BEADS_DIR='${BEAD_REPO_DIR}/.beads' BD_ACTOR='${AGENT_NAME}' ${BEAD_ID:+CURRENT_BEAD='${BEAD_ID}'}${CLAUDE_MEM_EXPORTS} && cd '${REPO_DIR}' && echo 'Starting ${AGENT_NAME} on branch ${AGENT_BRANCH}...' && ${RUNTIME_CMD} ${RUNTIME_FLAGS} ${CLAUDE_RESUME_FLAG}" Enter
 
 echo ""
 echo "Agent '${AGENT_NAME}' launched!"
