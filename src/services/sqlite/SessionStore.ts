@@ -50,6 +50,7 @@ export class SessionStore {
     // Migration 21 (multi-agent columns) handled by MigrationRunner.createMultiAgentTables()
     this.createProjectAliasesTable();
     this.createConversationHistoryTable();
+    this.addUserPromptsAgentIdColumn();
   }
 
   /**
@@ -1217,17 +1218,17 @@ export class SessionStore {
   /**
    * Save a user prompt
    */
-  saveUserPrompt(contentSessionId: string, promptNumber: number, promptText: string): number {
+  saveUserPrompt(contentSessionId: string, promptNumber: number, promptText: string, agentId?: string): number {
     const now = new Date();
     const nowEpoch = now.getTime();
 
     const stmt = this.db.prepare(`
       INSERT INTO user_prompts
-      (content_session_id, prompt_number, prompt_text, created_at, created_at_epoch)
-      VALUES (?, ?, ?, ?, ?)
+      (content_session_id, prompt_number, prompt_text, created_at, created_at_epoch, agent_id)
+      VALUES (?, ?, ?, ?, ?, ?)
     `);
 
-    const result = stmt.run(contentSessionId, promptNumber, promptText, now.toISOString(), nowEpoch);
+    const result = stmt.run(contentSessionId, promptNumber, promptText, now.toISOString(), nowEpoch, agentId ?? null);
     return result.lastInsertRowid as number;
   }
 
@@ -2189,6 +2190,26 @@ export class SessionStore {
 
     this.db.prepare('INSERT OR IGNORE INTO schema_versions (version, applied_at) VALUES (?, ?)').run(21, new Date().toISOString());
     logger.debug('DB', 'Successfully created conversation_history table');
+  }
+
+  /**
+   * Add agent_id column to user_prompts table (migration 25)
+   * Stores which agent (BD_ACTOR) received each prompt
+   */
+  private addUserPromptsAgentIdColumn(): void {
+    const applied = this.db.prepare('SELECT version FROM schema_versions WHERE version = ?').get(25) as SchemaVersion | undefined;
+    if (applied) return;
+
+    const tableInfo = this.db.query('PRAGMA table_info(user_prompts)').all() as TableColumnInfo[];
+    const hasAgentId = tableInfo.some(col => col.name === 'agent_id');
+
+    if (!hasAgentId) {
+      this.db.run('ALTER TABLE user_prompts ADD COLUMN agent_id TEXT');
+      this.db.run('CREATE INDEX idx_user_prompts_agent ON user_prompts(agent_id)');
+      logger.debug('DB', 'Added agent_id column to user_prompts table');
+    }
+
+    this.db.prepare('INSERT OR IGNORE INTO schema_versions (version, applied_at) VALUES (?, ?)').run(25, new Date().toISOString());
   }
 
   /**
