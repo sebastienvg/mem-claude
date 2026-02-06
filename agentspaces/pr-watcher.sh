@@ -32,10 +32,12 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# --- Project root (needed for agent name detection) ---
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
 # --- Beads setup ---
 # Auto-detect BEADS_DIR if not set (same logic as start-agent.sh)
 if [ -z "${BEADS_DIR:-}" ]; then
-    PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
     BEADS_BASE="${HOME}/.claude-mem/beads"
     if [ -d "$BEADS_BASE" ]; then
         # Find first bead repo
@@ -92,6 +94,22 @@ extract_bead_id() {
     if [[ "$branch" =~ ^(bd-[a-z0-9]+)- ]]; then
         echo "${BASH_REMATCH[1]}"
     fi
+}
+
+# --- Check if branch belongs to a known agent ---
+# Matches: bd-* branches, or <name>/* where <name> is a directory in agentspaces/
+is_agent_branch() {
+    local branch="$1"
+    # Always match bd-* branches
+    if [[ "$branch" =~ ^bd- ]]; then
+        return 0
+    fi
+    # Check if branch prefix matches an agent workspace
+    local prefix="${branch%%/*}"
+    if [ -n "$prefix" ] && [ "$prefix" != "$branch" ] && [ -d "${PROJECT_ROOT}/agentspaces/${prefix}" ]; then
+        return 0
+    fi
+    return 1
 }
 
 # --- Check if bead has unresolved blockers ---
@@ -169,7 +187,7 @@ poll() {
         return
     fi
 
-    # Filter to agent PRs (bd-* branches) and process
+    # Filter to agent PRs and process
     local merged=0
     for i in $(seq 0 $((count - 1))); do
         local number title branch mergeable labels body
@@ -181,28 +199,29 @@ poll() {
         body=$(echo "$prs" | jq -r ".[$i].body // empty")
 
         # Skip non-agent PRs
-        if [[ ! "$branch" =~ ^bd- ]]; then
+        if ! is_agent_branch "$branch"; then
             continue
         fi
 
         local bead_id
         bead_id=$(extract_bead_id "$branch")
+        local pr_label="${bead_id:-$branch}"
 
         # Skip if "do not merge" label
         if echo "$labels" | grep -qi "do not merge"; then
-            log HOLD "PR #$number ($bead_id) — \"do not merge\" label"
+            log HOLD "PR #$number ($pr_label) — \"do not merge\" label"
             continue
         fi
 
         # Skip if not mergeable
         if [ "$mergeable" != "MERGEABLE" ]; then
-            log SKIP "PR #$number ($bead_id) — not mergeable ($mergeable)"
+            log SKIP "PR #$number ($pr_label) — not mergeable ($mergeable)"
             continue
         fi
 
         # Check bead dependencies
         if [ -n "$bead_id" ] && bead_is_blocked "$bead_id"; then
-            log SKIP "PR #$number ($bead_id) — blocked by dependencies"
+            log SKIP "PR #$number ($pr_label) — blocked by dependencies"
             continue
         fi
 
@@ -210,18 +229,18 @@ poll() {
         local fails
         fails=$(get_fail_count "$number")
         if [ "$fails" -ge "$MAX_RETRIES" ]; then
-            log SKIP "PR #$number ($bead_id) — skipped after $MAX_RETRIES failed merge attempts"
+            log SKIP "PR #$number ($pr_label) — skipped after $MAX_RETRIES failed merge attempts"
             continue
         fi
 
         # Merge
         if $DRY_RUN; then
-            log DRY "Would merge PR #$number ($bead_id) — $title"
+            log DRY "Would merge PR #$number ($pr_label) — $title"
         else
             local merge_output
             merge_output=$(gh pr merge "$number" --merge --delete-branch 2>&1)
             if [ $? -eq 0 ]; then
-                log MERGE "PR #$number ($bead_id) — $title"
+                log MERGE "PR #$number ($pr_label) — $title"
                 clear_fail_count "$number"
                 # Close the bead
                 if [ -n "$bead_id" ]; then
@@ -233,7 +252,7 @@ poll() {
                 # Stagger merges
                 sleep 5
             else
-                log ERROR "Failed to merge PR #$number ($bead_id): $merge_output"
+                log ERROR "Failed to merge PR #$number ($pr_label): $merge_output"
                 inc_fail_count "$number"
             fi
         fi
