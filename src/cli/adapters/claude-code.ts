@@ -13,6 +13,7 @@ export const claudeCodeAdapter: PlatformAdapter = {
       toolInput: r.tool_input,
       toolResponse: r.tool_response,
       transcriptPath: r.transcript_path,
+      beadId: process.env.CURRENT_BEAD || undefined,
     };
   },
   formatOutput(result) {

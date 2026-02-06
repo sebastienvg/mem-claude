@@ -279,6 +279,12 @@ export class SessionSearch {
       }
     }
 
+    // Bead ID filter
+    if (filters.bead_id) {
+      conditions.push(`${tableAlias}.bead_id = ?`);
+      params.push(filters.bead_id);
+    }
+
     return conditions.length > 0 ? conditions.join(' AND ') : '';
   }
 

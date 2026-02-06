@@ -10,6 +10,8 @@ export interface NormalizedHookInput {
   // Cursor-specific fields
   filePath?: string;   // afterFileEdit
   edits?: unknown[];   // afterFileEdit
+  // Bead/task linkage
+  beadId?: string;
 }
 
 export interface HookResult {

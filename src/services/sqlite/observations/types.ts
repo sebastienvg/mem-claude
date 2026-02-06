@@ -30,6 +30,8 @@ export interface ObservationInput {
   agent?: string;
   department?: string;
   visibility?: VisibilityLevel;
+  // Bead/task linkage (optional, set via CURRENT_BEAD env var)
+  bead_id?: string;
 }
 
 /**

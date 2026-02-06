@@ -33,6 +33,7 @@ export interface ActiveSession {
   earliestPendingTimestamp: number | null;  // Original timestamp of earliest pending message (for accurate observation timestamps)
   conversationHistory: ConversationMessage[];  // Shared conversation history for provider switching
   currentProvider: 'claude' | 'gemini' | 'openrouter' | null;  // Track which provider is currently running
+  beadId: string | null;  // Bead/task linkage from CURRENT_BEAD env var
 }
 
 export interface PendingMessage {
@@ -43,6 +44,7 @@ export interface PendingMessage {
   prompt_number?: number;
   cwd?: string;
   last_assistant_message?: string;
+  bead_id?: string;
 }
 
 /**
@@ -61,6 +63,7 @@ export interface ObservationData {
   tool_response: any;
   prompt_number: number;
   cwd?: string;
+  bead_id?: string;
 }
 
 // ============================================================================
