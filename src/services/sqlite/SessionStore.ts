@@ -51,6 +51,7 @@ export class SessionStore {
     this.createProjectAliasesTable();
     this.createConversationHistoryTable();
     this.addUserPromptsAgentIdColumn();
+    this.addUserPromptsSenderIdColumn();
   }
 
   /**
@@ -826,6 +827,8 @@ export class SessionStore {
     prompt_text: string;
     created_at: string;
     created_at_epoch: number;
+    agent_id: string | null;
+    sender_id: string | null;
   }> {
     const stmt = this.db.prepare(`
       SELECT
@@ -835,7 +838,9 @@ export class SessionStore {
         up.prompt_number,
         up.prompt_text,
         up.created_at,
-        up.created_at_epoch
+        up.created_at_epoch,
+        up.agent_id,
+        up.sender_id
       FROM user_prompts up
       LEFT JOIN sdk_sessions s ON up.content_session_id = s.content_session_id
       ORDER BY up.created_at_epoch DESC
@@ -1218,17 +1223,17 @@ export class SessionStore {
   /**
    * Save a user prompt
    */
-  saveUserPrompt(contentSessionId: string, promptNumber: number, promptText: string, agentId?: string): number {
+  saveUserPrompt(contentSessionId: string, promptNumber: number, promptText: string, agentId?: string, senderId?: string): number {
     const now = new Date();
     const nowEpoch = now.getTime();
 
     const stmt = this.db.prepare(`
       INSERT INTO user_prompts
-      (content_session_id, prompt_number, prompt_text, created_at, created_at_epoch, agent_id)
-      VALUES (?, ?, ?, ?, ?, ?)
+      (content_session_id, prompt_number, prompt_text, created_at, created_at_epoch, agent_id, sender_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
 
-    const result = stmt.run(contentSessionId, promptNumber, promptText, now.toISOString(), nowEpoch, agentId ?? null);
+    const result = stmt.run(contentSessionId, promptNumber, promptText, now.toISOString(), nowEpoch, agentId ?? null, senderId ?? null);
     return result.lastInsertRowid as number;
   }
 
@@ -1846,6 +1851,8 @@ export class SessionStore {
     project: string;
     created_at: string;
     created_at_epoch: number;
+    agent_id: string | null;
+    sender_id: string | null;
   } | null {
     const stmt = this.db.prepare(`
       SELECT
@@ -1855,7 +1862,9 @@ export class SessionStore {
         p.prompt_text,
         s.project,
         p.created_at,
-        p.created_at_epoch
+        p.created_at_epoch,
+        p.agent_id,
+        p.sender_id
       FROM user_prompts p
       LEFT JOIN sdk_sessions s ON p.content_session_id = s.content_session_id
       WHERE p.id = ?
@@ -1876,6 +1885,8 @@ export class SessionStore {
     project: string;
     created_at: string;
     created_at_epoch: number;
+    agent_id: string | null;
+    sender_id: string | null;
   }> {
     if (ids.length === 0) return [];
 
@@ -1888,7 +1899,9 @@ export class SessionStore {
         p.prompt_text,
         s.project,
         p.created_at,
-        p.created_at_epoch
+        p.created_at_epoch,
+        p.agent_id,
+        p.sender_id
       FROM user_prompts p
       LEFT JOIN sdk_sessions s ON p.content_session_id = s.content_session_id
       WHERE p.id IN (${placeholders})
@@ -1903,6 +1916,8 @@ export class SessionStore {
       project: string;
       created_at: string;
       created_at_epoch: number;
+      agent_id: string | null;
+      sender_id: string | null;
     }>;
   }
 
@@ -2210,6 +2225,25 @@ export class SessionStore {
     }
 
     this.db.prepare('INSERT OR IGNORE INTO schema_versions (version, applied_at) VALUES (?, ?)').run(25, new Date().toISOString());
+  }
+
+  /**
+   * Add sender_id column to user_prompts table (migration 26)
+   * Stores who sent the prompt (format: user@hostname)
+   */
+  private addUserPromptsSenderIdColumn(): void {
+    const applied = this.db.prepare('SELECT version FROM schema_versions WHERE version = ?').get(26) as SchemaVersion | undefined;
+    if (applied) return;
+
+    const tableInfo = this.db.query('PRAGMA table_info(user_prompts)').all() as TableColumnInfo[];
+    const hasSenderId = tableInfo.some(col => col.name === 'sender_id');
+
+    if (!hasSenderId) {
+      this.db.run('ALTER TABLE user_prompts ADD COLUMN sender_id TEXT');
+      logger.debug('DB', 'Added sender_id column to user_prompts table');
+    }
+
+    this.db.prepare('INSERT OR IGNORE INTO schema_versions (version, applied_at) VALUES (?, ?)').run(26, new Date().toISOString());
   }
 
   /**

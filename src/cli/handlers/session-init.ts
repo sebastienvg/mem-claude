@@ -8,6 +8,7 @@ import type { EventHandler, NormalizedHookInput, HookResult } from '../types.js'
 import { ensureWorkerRunning, getWorkerUrl } from '../../shared/worker-utils.js';
 import { getProjectName } from '../../utils/project-name.js';
 import { logger } from '../../utils/logger.js';
+import { hostname } from 'os';
 
 export const sessionInitHandler: EventHandler = {
   async execute(input: NormalizedHookInput): Promise<HookResult> {
@@ -34,7 +35,8 @@ export const sessionInitHandler: EventHandler = {
         project,
         prompt,
         cwd,  // Include cwd for project alias registration
-        agent_id: process.env.BD_ACTOR || undefined
+        agent_id: process.env.BD_ACTOR || undefined,
+        sender_id: `${process.env.USER || 'unknown'}@${hostname().split('.')[0]}`
       })
       // Note: Removed signal to avoid Windows Bun cleanup issue (libuv assertion)
     });

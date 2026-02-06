@@ -39,6 +39,7 @@ export interface UserPrompt {
   prompt_text: string;
   created_at_epoch: number;
   agent_id?: string | null;
+  sender_id?: string | null;
 }
 
 export type FeedItem =

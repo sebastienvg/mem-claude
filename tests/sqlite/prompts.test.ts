@@ -180,4 +180,39 @@ describe('Prompts Module', () => {
       expect(indexes.length).toBe(1);
     });
   });
+
+  describe('saveUserPrompt with sender_id', () => {
+    it('should save prompt with sender_id', () => {
+      const contentSessionId = createSession('sender-prompt-1');
+      const id = saveUserPrompt(db, contentSessionId, 1, 'Agent prompt', 'davinci', 'seb@MBP');
+
+      const row = db.prepare('SELECT sender_id FROM user_prompts WHERE id = ?').get(id) as { sender_id: string | null };
+      expect(row.sender_id).toBe('seb@MBP');
+    });
+
+    it('should save prompt with null sender_id when omitted', () => {
+      const contentSessionId = createSession('sender-prompt-2');
+      const id = saveUserPrompt(db, contentSessionId, 1, 'User prompt');
+
+      const row = db.prepare('SELECT sender_id FROM user_prompts WHERE id = ?').get(id) as { sender_id: string | null };
+      expect(row.sender_id).toBeNull();
+    });
+
+    it('should save prompt with both agent_id and sender_id', () => {
+      const contentSessionId = createSession('sender-prompt-3');
+      const id = saveUserPrompt(db, contentSessionId, 1, 'Prompt', 'davinci', 'seb@MBP');
+
+      const row = db.prepare('SELECT agent_id, sender_id FROM user_prompts WHERE id = ?').get(id) as { agent_id: string | null; sender_id: string | null };
+      expect(row.agent_id).toBe('davinci');
+      expect(row.sender_id).toBe('seb@MBP');
+    });
+  });
+
+  describe('sender_id schema', () => {
+    it('should have sender_id column in user_prompts table', () => {
+      const columns = db.prepare('PRAGMA table_info(user_prompts)').all() as Array<{ name: string }>;
+      const columnNames = columns.map(c => c.name);
+      expect(columnNames).toContain('sender_id');
+    });
+  });
 });
