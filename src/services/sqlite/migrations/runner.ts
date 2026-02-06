@@ -36,6 +36,7 @@ export class MigrationRunner {
     this.addAgentLineageColumns();
     this.addBeadIdColumns();
     this.addUserPromptsAgentIdColumn();
+    this.addUserPromptsSenderIdColumn();
   }
 
   /**
@@ -1000,5 +1001,24 @@ export class MigrationRunner {
     }
 
     this.db.prepare('INSERT OR IGNORE INTO schema_versions (version, applied_at) VALUES (?, ?)').run(25, new Date().toISOString());
+  }
+
+  /**
+   * Add sender_id column to user_prompts table (migration 26)
+   * Stores who sent the prompt (format: user@hostname)
+   */
+  private addUserPromptsSenderIdColumn(): void {
+    const applied = this.db.prepare('SELECT version FROM schema_versions WHERE version = ?').get(26) as SchemaVersion | undefined;
+    if (applied) return;
+
+    const tableInfo = this.db.query('PRAGMA table_info(user_prompts)').all() as TableColumnInfo[];
+    const hasSenderId = tableInfo.some(col => col.name === 'sender_id');
+
+    if (!hasSenderId) {
+      this.db.run('ALTER TABLE user_prompts ADD COLUMN sender_id TEXT');
+      logger.debug('DB', 'Added sender_id column to user_prompts table');
+    }
+
+    this.db.prepare('INSERT OR IGNORE INTO schema_versions (version, applied_at) VALUES (?, ?)').run(26, new Date().toISOString());
   }
 }
