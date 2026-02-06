@@ -23,7 +23,7 @@ while [[ $# -gt 0 ]]; do
         --once)     ONCE=true; shift ;;
         -h|--help)
             echo "Usage: $0 [--interval <seconds>] [--dry-run] [--once]"
-            echo "  --interval N  Poll every N seconds (default 60)"
+            echo "  --interval N  Poll every N seconds (default 120)"
             echo "  --dry-run     Log what would happen without merging"
             echo "  --once        Run one pass and exit"
             exit 0
