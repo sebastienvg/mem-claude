@@ -65,6 +65,22 @@ try {
     { stdio: 'inherit' }
   );
 
+  // Clean up stale root .mcp.json that shadows plugin's MCP config (GH #65)
+  const staleMcpPath = path.join(INSTALLED_PATH, '.mcp.json');
+  if (existsSync(staleMcpPath)) {
+    try {
+      const content = JSON.parse(readFileSync(staleMcpPath, 'utf-8'));
+      if (!content.mcpServers || Object.keys(content.mcpServers).length === 0) {
+        require('fs').unlinkSync(staleMcpPath);
+        console.log('Removed stale root .mcp.json (empty mcpServers)');
+      }
+    } catch {
+      // If it can't be parsed, remove it too
+      require('fs').unlinkSync(staleMcpPath);
+      console.log('Removed unparseable root .mcp.json');
+    }
+  }
+
   console.log('Running npm install in marketplace...');
   execSync(
     'cd ~/.claude/plugins/marketplaces/thedotmack/ && npm install',
