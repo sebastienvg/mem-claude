@@ -13,7 +13,7 @@ export const observationHandler: EventHandler = {
     // Ensure worker is running before any other logic
     await ensureWorkerRunning();
 
-    const { sessionId, cwd, toolName, toolInput, toolResponse } = input;
+    const { sessionId, cwd, toolName, toolInput, toolResponse, beadId } = input;
 
     if (!toolName) {
       throw new Error('observationHandler requires toolName');
@@ -41,7 +41,8 @@ export const observationHandler: EventHandler = {
         tool_name: toolName,
         tool_input: toolInput,
         tool_response: toolResponse,
-        cwd
+        cwd,
+        bead_id: beadId
       })
       // Note: Removed signal to avoid Windows Bun cleanup issue (libuv assertion)
     });

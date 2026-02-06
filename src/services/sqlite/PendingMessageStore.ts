@@ -16,6 +16,7 @@ export interface PersistentPendingMessage {
   cwd: string | null;
   last_assistant_message: string | null;
   prompt_number: number | null;
+  bead_id: string | null;
   status: 'pending' | 'processing' | 'processed' | 'failed';
   retry_count: number;
   created_at_epoch: number;
@@ -56,8 +57,8 @@ export class PendingMessageStore {
         session_db_id, content_session_id, message_type,
         tool_name, tool_input, tool_response, cwd,
         last_assistant_message,
-        prompt_number, status, retry_count, created_at_epoch
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?)
+        prompt_number, bead_id, status, retry_count, created_at_epoch
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?)
     `);
 
     const result = stmt.run(
@@ -70,6 +71,7 @@ export class PendingMessageStore {
       message.cwd || null,
       message.last_assistant_message || null,
       message.prompt_number || null,
+      message.bead_id || null,
       now
     );
 

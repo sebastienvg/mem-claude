@@ -550,7 +550,7 @@ sleep 0.5
 # Set CLAUDE_CONFIG_DIR in the tmux session and start Claude
 # NOTE: cd to REPO_DIR so Claude works in the agent's own clone.
 tmux send-keys -t "$TMUX_SESSION" \
-    "export CLAUDE_CONFIG_DIR='${CLAUDE_DIR}' AGENT_LIFECYCLE='${AGENT_LIFECYCLE}' AGENT_SPAWNER='${AGENT_NAME}' BEADS_NO_DAEMON=1 BEADS_DIR='${BEAD_REPO_DIR}/.beads' BD_ACTOR='${AGENT_NAME}' && cd '${REPO_DIR}' && echo 'Starting ${AGENT_NAME} on branch ${AGENT_BRANCH}...' && claude --dangerously-skip-permissions ${CLAUDE_RESUME_FLAG}" Enter
+    "export CLAUDE_CONFIG_DIR='${CLAUDE_DIR}' AGENT_LIFECYCLE='${AGENT_LIFECYCLE}' AGENT_SPAWNER='${AGENT_NAME}' BEADS_NO_DAEMON=1 BEADS_DIR='${BEAD_REPO_DIR}/.beads' BD_ACTOR='${AGENT_NAME}' ${BEAD_ID:+CURRENT_BEAD='${BEAD_ID}'} && cd '${REPO_DIR}' && echo 'Starting ${AGENT_NAME} on branch ${AGENT_BRANCH}...' && claude --dangerously-skip-permissions ${CLAUDE_RESUME_FLAG}" Enter
 
 echo ""
 echo "Agent '${AGENT_NAME}' launched!"

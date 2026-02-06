@@ -153,7 +153,8 @@ export class SessionManager {
       cumulativeOutputTokens: 0,
       earliestPendingTimestamp: null,
       conversationHistory: [],  // Initialize empty - will be populated by agents
-      currentProvider: null  // Will be set when generator starts
+      currentProvider: null,  // Will be set when generator starts
+      beadId: null  // Will be set from first pending message with bead_id
     };
 
     logger.debug('SESSION', 'Creating new session object (memorySessionId cleared to prevent stale resume)', {
@@ -202,6 +203,11 @@ export class SessionManager {
       session = this.initializeSession(sessionDbId);
     }
 
+    // Set bead_id on session from observation data (once set, it persists for the session)
+    if (data.bead_id && !session.beadId) {
+      session.beadId = data.bead_id;
+    }
+
     // CRITICAL: Persist to database FIRST
     const message: PendingMessage = {
       type: 'observation',
@@ -209,7 +215,8 @@ export class SessionManager {
       tool_input: data.tool_input,
       tool_response: data.tool_response,
       prompt_number: data.prompt_number,
-      cwd: data.cwd
+      cwd: data.cwd,
+      bead_id: data.bead_id
     };
 
     try {

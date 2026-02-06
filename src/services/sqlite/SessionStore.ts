@@ -1275,8 +1275,8 @@ export class SessionStore {
     const stmt = this.db.prepare(`
       INSERT INTO observations
       (memory_session_id, project, type, title, subtitle, facts, narrative, concepts,
-       files_read, files_modified, prompt_number, discovery_tokens, created_at, created_at_epoch)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       files_read, files_modified, prompt_number, discovery_tokens, bead_id, created_at, created_at_epoch)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
@@ -1292,6 +1292,7 @@ export class SessionStore {
       JSON.stringify(observation.files_modified),
       promptNumber || null,
       discoveryTokens,
+      (observation as any).bead_id || null,
       timestampIso,
       timestampEpoch
     );
@@ -1406,8 +1407,8 @@ export class SessionStore {
       const obsStmt = this.db.prepare(`
         INSERT INTO observations
         (memory_session_id, project, type, title, subtitle, facts, narrative, concepts,
-         files_read, files_modified, prompt_number, discovery_tokens, created_at, created_at_epoch)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         files_read, files_modified, prompt_number, discovery_tokens, bead_id, created_at, created_at_epoch)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       for (const observation of observations) {
@@ -1424,6 +1425,7 @@ export class SessionStore {
           JSON.stringify(observation.files_modified),
           promptNumber || null,
           discoveryTokens,
+          (observation as any).bead_id || null,
           timestampIso,
           timestampEpoch
         );
@@ -1526,8 +1528,8 @@ export class SessionStore {
       const obsStmt = this.db.prepare(`
         INSERT INTO observations
         (memory_session_id, project, type, title, subtitle, facts, narrative, concepts,
-         files_read, files_modified, prompt_number, discovery_tokens, created_at, created_at_epoch)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         files_read, files_modified, prompt_number, discovery_tokens, bead_id, created_at, created_at_epoch)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       for (const observation of observations) {
@@ -1544,6 +1546,7 @@ export class SessionStore {
           JSON.stringify(observation.files_modified),
           promptNumber || null,
           discoveryTokens,
+          (observation as any).bead_id || null,
           timestampIso,
           timestampEpoch
         );

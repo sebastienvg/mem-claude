@@ -34,6 +34,7 @@ export class MigrationRunner {
     this.createMultiAgentTables();
     this.createProjectAliasesTable();
     this.addAgentLineageColumns();
+    this.addBeadIdColumns();
   }
 
   /**
@@ -948,5 +949,35 @@ export class MigrationRunner {
     }
 
     this.db.prepare('INSERT OR IGNORE INTO schema_versions (version, applied_at) VALUES (?, ?)').run(23, new Date().toISOString());
+  }
+
+  /**
+   * Add bead_id column to observations and pending_messages (migration 24)
+   *
+   * Links observations to the bead/task that produced them.
+   * The CURRENT_BEAD env var is set by start-agent.sh when --bead flag is used.
+   */
+  private addBeadIdColumns(): void {
+    const applied = this.db.prepare('SELECT version FROM schema_versions WHERE version = ?').get(24) as SchemaVersion | undefined;
+    if (applied) return;
+
+    const obsInfo = this.db.query('PRAGMA table_info(observations)').all() as TableColumnInfo[];
+    const obsHasBeadId = obsInfo.some(col => col.name === 'bead_id');
+
+    if (!obsHasBeadId) {
+      this.db.run('ALTER TABLE observations ADD COLUMN bead_id TEXT');
+      this.db.run('CREATE INDEX IF NOT EXISTS idx_observations_bead_id ON observations(bead_id)');
+      logger.debug('DB', 'Added bead_id column to observations table');
+    }
+
+    const pendingInfo = this.db.query('PRAGMA table_info(pending_messages)').all() as TableColumnInfo[];
+    const pendingHasBeadId = pendingInfo.some(col => col.name === 'bead_id');
+
+    if (!pendingHasBeadId) {
+      this.db.run('ALTER TABLE pending_messages ADD COLUMN bead_id TEXT');
+      logger.debug('DB', 'Added bead_id column to pending_messages table');
+    }
+
+    this.db.prepare('INSERT OR IGNORE INTO schema_versions (version, applied_at) VALUES (?, ?)').run(24, new Date().toISOString());
   }
 }

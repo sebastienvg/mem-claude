@@ -55,8 +55,8 @@ export function storeObservation(
     INSERT INTO observations
     (memory_session_id, project, type, title, subtitle, facts, narrative, concepts,
      files_read, files_modified, prompt_number, discovery_tokens, agent, department, visibility,
-     created_at, created_at_epoch)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     bead_id, created_at, created_at_epoch)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const result = stmt.run(
@@ -75,6 +75,7 @@ export function storeObservation(
     agent,
     department,
     visibility,
+    observation.bead_id || null,
     timestampIso,
     timestampEpoch
   );

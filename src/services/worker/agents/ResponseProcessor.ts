@@ -80,6 +80,13 @@ export async function processAgentResponse(
     memorySessionId: session.memorySessionId
   });
 
+  // Set bead_id on observations from session (propagated from CURRENT_BEAD env var)
+  if (session.beadId) {
+    for (const obs of observations) {
+      (obs as any).bead_id = session.beadId;
+    }
+  }
+
   // ATOMIC TRANSACTION: Store observations + summary ONCE
   // Messages are already deleted from queue on claim, so no completion tracking needed
   const result = sessionStore.storeObservations(

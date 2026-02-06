@@ -476,7 +476,7 @@ export class DataRoutes extends BaseRouteHandler {
   private handleSaveObservation = this.wrapHandler((req: Request, res: Response): void => {
     const {
       title, text, type, project, facts, concepts, files_read, files_modified,
-      memory_session_id, agent, department, visibility
+      memory_session_id, agent, department, visibility, bead_id
     } = req.body;
 
     // Validate required fields
@@ -501,7 +501,8 @@ export class DataRoutes extends BaseRouteHandler {
       files_modified: Array.isArray(files_modified) ? files_modified : [],
       agent: agent,
       department: department,
-      visibility: visibility
+      visibility: visibility,
+      bead_id: bead_id
     };
 
     // Use provided session ID or generate unique one for manual observations

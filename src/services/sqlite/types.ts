@@ -261,6 +261,7 @@ export interface SearchFilters {
   concepts?: string | string[];
   files?: string | string[];
   dateRange?: DateRange;
+  bead_id?: string;
 }
 
 /**
