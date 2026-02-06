@@ -82,7 +82,7 @@ export class SettingsDefaultsManager {
     CLAUDE_MEM_MODEL: 'claude-sonnet-4-5',
     CLAUDE_MEM_CONTEXT_OBSERVATIONS: '50',
     CLAUDE_MEM_WORKER_PORT: '37777',
-    CLAUDE_MEM_WORKER_HOST: '127.0.0.1',
+    CLAUDE_MEM_WORKER_HOST: '0.0.0.0',
     CLAUDE_MEM_WORKER_URL: '',  // Empty = construct from host+port; set explicitly for container/remote mode
     CLAUDE_MEM_SKIP_TOOLS: 'ListMcpResourcesTool,SlashCommand,Skill,TodoWrite,AskUserQuestion',
     // Chroma Configuration
