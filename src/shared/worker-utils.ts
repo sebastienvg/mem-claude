@@ -156,21 +156,39 @@ async function checkWorkerVersion(): Promise<void> {
 
 
 /**
+ * Check if the worker URL points to a remote host (not localhost)
+ */
+function isRemoteWorker(): boolean {
+  const url = getWorkerUrl();
+  try {
+    const { hostname } = new URL(url);
+    const localHosts = ['localhost', '127.0.0.1', '0.0.0.0', '::1'];
+    return !localHosts.includes(hostname);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Ensure worker service is running
- * Polls until worker is ready (assumes worker-service.cjs start was called by hooks.json)
+ * For remote workers: just health-check, don't try to start a local process
+ * For local workers: polls until ready (assumes worker-service.cjs start was called by hooks.json)
  */
 export async function ensureWorkerRunning(): Promise<void> {
-  const maxRetries = 75;  // 15 seconds total
+  const remote = isRemoteWorker();
+  const maxRetries = remote ? 15 : 75;  // remote: 3s, local: 15s
   const pollInterval = 200;
 
   for (let i = 0; i < maxRetries; i++) {
     try {
       if (await isWorkerHealthy()) {
-        await checkWorkerVersion();  // logs warning on mismatch, doesn't restart
+        if (!remote) {
+          await checkWorkerVersion();  // only check version for local workers
+        }
         return;
       }
     } catch (e) {
-      logger.debug('SYSTEM', 'Worker health check failed, will retry', {
+      logger.debug('SYSTEM', `${remote ? 'Remote' : 'Local'} worker health check failed, will retry`, {
         attempt: i + 1,
         maxRetries,
         error: e instanceof Error ? e.message : String(e)
@@ -181,6 +199,8 @@ export async function ensureWorkerRunning(): Promise<void> {
 
   throw new Error(getWorkerRestartInstructions({
     url: getWorkerUrl(),
-    customPrefix: 'Worker did not become ready within 15 seconds.'
+    customPrefix: remote
+      ? `Remote worker at ${getWorkerUrl()} is not responding.`
+      : 'Worker did not become ready within 15 seconds.'
   }));
 }
