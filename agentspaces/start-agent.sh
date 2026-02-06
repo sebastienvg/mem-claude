@@ -295,9 +295,26 @@ if [ ! -f "$AGENT_SETTINGS" ]; then
     "type": "command",
     "command": "/Users/seb/AI/mem-claude/agentspaces/statusline.sh",
     "padding": 0
+  },
+  "enabledPlugins": {
+    "claude-mem@thedotmack": true
   }
 }
 SETTINGS
+fi
+
+# --- Ensure enabledPlugins in existing agent settings (GH #65) ---
+if [ -f "$AGENT_SETTINGS" ]; then
+    if ! python3 -c "import json; d=json.load(open('$AGENT_SETTINGS')); assert 'enabledPlugins' in d" 2>/dev/null; then
+        python3 -c "
+import json, sys
+p = sys.argv[1]
+d = json.load(open(p))
+d['enabledPlugins'] = {'claude-mem@thedotmack': True}
+json.dump(d, open(p, 'w'), indent=2)
+print('Added enabledPlugins to', p)
+" "$AGENT_SETTINGS"
+    fi
 fi
 
 # --- Mark lifecycle ---
