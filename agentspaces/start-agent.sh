@@ -308,9 +308,16 @@ else
 fi
 
 # --- Symlink plugins from ~/.claude so agent gets claude-mem hooks + MCP search ---
-if [ ! -e "$CLAUDE_DIR/plugins" ] && [ -d "$HOME/.claude/plugins" ]; then
-    ln -s "$HOME/.claude/plugins" "$CLAUDE_DIR/plugins"
-    echo "Linked plugins from ~/.claude/plugins"
+if [ -d "$HOME/.claude/plugins" ]; then
+    if [ -d "$CLAUDE_DIR/plugins" ] && [ ! -L "$CLAUDE_DIR/plugins" ]; then
+        # Real directory exists (from older setup) — replace with symlink
+        rm -rf "$CLAUDE_DIR/plugins"
+        ln -s "$HOME/.claude/plugins" "$CLAUDE_DIR/plugins"
+        echo "Replaced real plugins dir with symlink to ~/.claude/plugins"
+    elif [ ! -e "$CLAUDE_DIR/plugins" ]; then
+        ln -s "$HOME/.claude/plugins" "$CLAUDE_DIR/plugins"
+        echo "Linked plugins from ~/.claude/plugins"
+    fi
 fi
 
 # --- Verify worker service is running ---
@@ -470,6 +477,18 @@ On your first message, verify your environment is working:
    \`curl -s ${WORKER_URL}/api/agents/me -H "Authorization: Bearer \$(cat .claude/.agent-key)" | jq .\`
    - Should return your agent profile.
    - If this fails, register manually: \`curl -X POST ${WORKER_URL}/api/agents/register -H 'Content-Type: application/json' -d '{"id": "${AGENT_NAME}@\$(hostname -s)", "department": "engineering"}'\`
+
+## Chain of Command
+
+\`\`\`
+Human (vision) → Da Vin Cee (plan) → Max (orchestrate) → Agents (execute)
+\`\`\`
+
+- **Da Vin Cee** plans work. He NEVER writes code.
+- **Max** dispatches agents, tracks progress, closes beads. He is your direct manager.
+- **You** execute your focused task, open a PR, and report back to Max.
+- Report to Max only — never directly to Da Vin Cee.
+- Only Max dispatches sub-agents.
 
 ## Rules
 
