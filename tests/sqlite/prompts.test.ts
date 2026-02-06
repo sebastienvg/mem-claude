@@ -126,4 +126,58 @@ describe('Prompts Module', () => {
       expect(getPromptNumberFromUserPrompts(db, contentSessionId)).toBe(100);
     });
   });
+
+  describe('saveUserPrompt with agent_id', () => {
+    it('should save prompt with agent_id', () => {
+      const contentSessionId = createSession('agent-prompt-1');
+      const id = saveUserPrompt(db, contentSessionId, 1, 'Agent prompt', 'davinci');
+
+      const row = db.prepare('SELECT agent_id FROM user_prompts WHERE id = ?').get(id) as { agent_id: string | null };
+      expect(row.agent_id).toBe('davinci');
+    });
+
+    it('should save prompt with null agent_id when omitted', () => {
+      const contentSessionId = createSession('agent-prompt-2');
+      const id = saveUserPrompt(db, contentSessionId, 1, 'User prompt');
+
+      const row = db.prepare('SELECT agent_id FROM user_prompts WHERE id = ?').get(id) as { agent_id: string | null };
+      expect(row.agent_id).toBeNull();
+    });
+
+    it('should save prompt with null agent_id when explicitly undefined', () => {
+      const contentSessionId = createSession('agent-prompt-3');
+      const id = saveUserPrompt(db, contentSessionId, 1, 'User prompt', undefined);
+
+      const row = db.prepare('SELECT agent_id FROM user_prompts WHERE id = ?').get(id) as { agent_id: string | null };
+      expect(row.agent_id).toBeNull();
+    });
+
+    it('should store different agent_ids for different prompts', () => {
+      const contentSessionId = createSession('agent-prompt-4');
+      const id1 = saveUserPrompt(db, contentSessionId, 1, 'Prompt 1', 'davinci');
+      const id2 = saveUserPrompt(db, contentSessionId, 2, 'Prompt 2', 'claude');
+      const id3 = saveUserPrompt(db, contentSessionId, 3, 'Prompt 3');
+
+      const row1 = db.prepare('SELECT agent_id FROM user_prompts WHERE id = ?').get(id1) as { agent_id: string | null };
+      const row2 = db.prepare('SELECT agent_id FROM user_prompts WHERE id = ?').get(id2) as { agent_id: string | null };
+      const row3 = db.prepare('SELECT agent_id FROM user_prompts WHERE id = ?').get(id3) as { agent_id: string | null };
+
+      expect(row1.agent_id).toBe('davinci');
+      expect(row2.agent_id).toBe('claude');
+      expect(row3.agent_id).toBeNull();
+    });
+  });
+
+  describe('agent_id schema', () => {
+    it('should have agent_id column in user_prompts table', () => {
+      const columns = db.prepare('PRAGMA table_info(user_prompts)').all() as Array<{ name: string }>;
+      const columnNames = columns.map(c => c.name);
+      expect(columnNames).toContain('agent_id');
+    });
+
+    it('should have index on agent_id column', () => {
+      const indexes = db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='user_prompts' AND name='idx_user_prompts_agent'").all();
+      expect(indexes.length).toBe(1);
+    });
+  });
 });

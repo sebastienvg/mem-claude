@@ -33,7 +33,8 @@ export const sessionInitHandler: EventHandler = {
         contentSessionId: sessionId,
         project,
         prompt,
-        cwd  // Include cwd for project alias registration
+        cwd,  // Include cwd for project alias registration
+        agent_id: process.env.BD_ACTOR || undefined
       })
       // Note: Removed signal to avoid Windows Bun cleanup issue (libuv assertion)
     });

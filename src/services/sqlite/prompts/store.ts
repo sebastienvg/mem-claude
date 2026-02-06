@@ -13,17 +13,18 @@ export function saveUserPrompt(
   db: Database,
   contentSessionId: string,
   promptNumber: number,
-  promptText: string
+  promptText: string,
+  agentId?: string
 ): number {
   const now = new Date();
   const nowEpoch = now.getTime();
 
   const stmt = db.prepare(`
     INSERT INTO user_prompts
-    (content_session_id, prompt_number, prompt_text, created_at, created_at_epoch)
-    VALUES (?, ?, ?, ?, ?)
+    (content_session_id, prompt_number, prompt_text, created_at, created_at_epoch, agent_id)
+    VALUES (?, ?, ?, ?, ?, ?)
   `);
 
-  const result = stmt.run(contentSessionId, promptNumber, promptText, now.toISOString(), nowEpoch);
+  const result = stmt.run(contentSessionId, promptNumber, promptText, now.toISOString(), nowEpoch, agentId ?? null);
   return result.lastInsertRowid as number;
 }

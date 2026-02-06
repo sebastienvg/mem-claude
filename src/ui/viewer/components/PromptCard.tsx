@@ -14,6 +14,7 @@ export function PromptCard({ prompt }: PromptCardProps) {
       <div className="card-header">
         <div className="card-header-left">
           <span className="card-type">Prompt</span>
+          {prompt.agent_id && <span className="card-agent">{prompt.agent_id}</span>}
           <span className="card-project">{prompt.project}</span>
         </div>
       </div>
