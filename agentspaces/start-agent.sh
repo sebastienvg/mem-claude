@@ -2,10 +2,11 @@
 # Generic launcher for any agent in the mem-claude project
 # Creates workspace, clones repo, checks out branch, and starts Claude in tmux
 #
-# Usage: ./start-agent.sh <agent-name> [--role <role>] [--task <task>] [--branch <branch>] [--ephemeral] [--bead <bead-id>] [--continue|-c]
+# Usage: ./start-agent.sh <agent-name> [--role <role>] [--task <task>] [--branch <branch>] [--ephemeral] [--bead <bead-id>] [--continue|-c] [--host <host>] [--runtime <name>]
 # Example: ./start-agent.sh davinci --role "Senior Engineer" --branch "davinci/statusline" --task "Build statusline"
 #          ./start-agent.sh review-bot --ephemeral --role "Code Reviewer"
 #          ./start-agent.sh my-agent --bead bd-1cc --role "Shell Developer"  # produces agent name bd-1cc-shell
+#          ./start-agent.sh my-agent --host linux-box --branch my-agent/task --role "engineer"  # remote provisioning
 
 set -euo pipefail
 
@@ -33,6 +34,8 @@ AGENT_LIFECYCLE="perm"
 AGENT_BRANCH=""
 BEAD_ID=""
 CONTINUE_SESSION=false
+REMOTE_HOST=""
+RUNTIME_NAME="claude-code"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --role) AGENT_ROLE="$2"; shift 2 ;;
@@ -41,6 +44,8 @@ while [[ $# -gt 0 ]]; do
         --ephemeral) AGENT_LIFECYCLE="ephemeral"; shift ;;
         --bead) BEAD_ID="$2"; shift 2 ;;
         --continue|-c) CONTINUE_SESSION=true; shift ;;
+        --host) REMOTE_HOST="$2"; shift 2 ;;
+        --runtime) RUNTIME_NAME="$2"; shift 2 ;;
         *) break ;;
     esac
 done
@@ -76,16 +81,129 @@ if [ "$CONTINUE_SESSION" = true ] && [ "$AGENT_LIFECYCLE" = "ephemeral" ]; then
     exit 1
 fi
 
+# Auto-generate branch name from agent name if not specified (needed before remote block)
+if [ -z "$AGENT_BRANCH" ]; then
+    AGENT_BRANCH="${AGENT_NAME}/work"
+fi
+
+# --- REMOTE PROVISIONING ---
+if [ -n "$REMOTE_HOST" ]; then
+    # 1. Read remote host config from agentspace.json
+    AGENTSPACE_CONFIG="${HOME}/.claude-mem/agentspace.json"
+    REMOTE_REPO_PATH=""
+    if [ -f "$AGENTSPACE_CONFIG" ] && command -v jq >/dev/null 2>&1; then
+        # Try to find host by SSH target or by name
+        REMOTE_REPO_PATH=$(jq -r --arg host "$REMOTE_HOST" '
+            .["remote-hosts"] | to_entries[] |
+            select(.value.ssh == $host or .key == $host) |
+            .value["repo-path"] // empty
+        ' "$AGENTSPACE_CONFIG" 2>/dev/null)
+        # If host was a name, resolve SSH target
+        _SSH=$(jq -r --arg host "$REMOTE_HOST" '
+            .["remote-hosts"][$host].ssh // empty
+        ' "$AGENTSPACE_CONFIG" 2>/dev/null)
+        [ -n "$_SSH" ] && REMOTE_HOST="$_SSH"
+    fi
+
+    # Require repo-path
+    if [ -z "$REMOTE_REPO_PATH" ]; then
+        echo "Error: No repo-path found for host '$REMOTE_HOST' in agentspace.json"
+        echo "Add to ~/.claude-mem/agentspace.json:"
+        echo '  "remote-hosts": { "name": { "ssh": "'$REMOTE_HOST'", "repo-path": "/path/to/repo" } }'
+        exit 1
+    fi
+
+    # 2. Verify SSH connectivity
+    echo "Connecting to ${REMOTE_HOST}..."
+    if ! ssh -o ConnectTimeout=5 "$REMOTE_HOST" "echo ok" >/dev/null 2>&1; then
+        echo "Error: Cannot SSH to $REMOTE_HOST (key auth required)"
+        exit 1
+    fi
+
+    # 3. Check/clone repo on remote
+    REMOTE_AGENT_DIR="${REMOTE_REPO_PATH}/agentspaces/${AGENT_NAME}"
+    REMOTE_REPO_DIR="${REMOTE_AGENT_DIR}/repo"
+
+    ssh "$REMOTE_HOST" bash -s << REMOTE_SETUP
+        set -e
+        if [ ! -d "${REMOTE_REPO_PATH}" ]; then
+            echo "Error: Repo not found at ${REMOTE_REPO_PATH}"
+            exit 1
+        fi
+
+        # Create agent workspace
+        mkdir -p "${REMOTE_AGENT_DIR}"
+
+        # Clone if needed
+        if [ ! -d "${REMOTE_REPO_DIR}/.git" ]; then
+            ORIGIN=\$(cd "${REMOTE_REPO_PATH}" && git remote get-url origin 2>/dev/null || echo "")
+            if [ -n "\$ORIGIN" ]; then
+                git clone --reference "${REMOTE_REPO_PATH}" "\$ORIGIN" "${REMOTE_REPO_DIR}" 2>/dev/null || \
+                    git clone "${REMOTE_REPO_PATH}" "${REMOTE_REPO_DIR}"
+            else
+                git clone "${REMOTE_REPO_PATH}" "${REMOTE_REPO_DIR}"
+            fi
+        fi
+
+        # Checkout branch
+        cd "${REMOTE_REPO_DIR}"
+        git fetch origin main 2>/dev/null || true
+        git checkout -b "${AGENT_BRANCH}" origin/main 2>/dev/null || git checkout "${AGENT_BRANCH}"
+REMOTE_SETUP
+
+    # 4. Read runtime config
+    RUNTIME_CMD="claude"
+    RUNTIME_FLAGS="--dangerously-skip-permissions"
+    if [ -f "$AGENTSPACE_CONFIG" ] && command -v jq >/dev/null 2>&1; then
+        _CMD=$(jq -r --arg rt "$RUNTIME_NAME" '.runtimes[$rt].command // empty' "$AGENTSPACE_CONFIG" 2>/dev/null)
+        _FLAGS=$(jq -r --arg rt "$RUNTIME_NAME" '.runtimes[$rt].flags // empty' "$AGENTSPACE_CONFIG" 2>/dev/null)
+        [ -n "$_CMD" ] && RUNTIME_CMD="$_CMD"
+        [ -n "$_FLAGS" ] && RUNTIME_FLAGS="$_FLAGS"
+    fi
+
+    # 5. Build worker URL (central worker)
+    WORKER_URL="${CLAUDE_MEM_WORKER_URL:-http://localhost:37777}"
+
+    # 6. Create tmux session on remote and start agent
+    TMUX_SESSION="agent-${AGENT_NAME}"
+
+    ssh "$REMOTE_HOST" bash -s << REMOTE_LAUNCH
+        set -e
+        # Kill existing session if any
+        tmux kill-session -t "${TMUX_SESSION}" 2>/dev/null || true
+
+        # Create new tmux session
+        tmux new-session -d -s "${TMUX_SESSION}" -c "${REMOTE_REPO_DIR}"
+
+        # Background fetch
+        tmux send-keys -t "${TMUX_SESSION}" "(while true; do git fetch origin main --quiet 2>/dev/null; sleep 60; done) &" Enter
+        sleep 0.5
+
+        # Start the runtime
+        tmux send-keys -t "${TMUX_SESSION}" "export BD_ACTOR='${AGENT_NAME}' BEADS_NO_DAEMON=1 CLAUDE_MEM_WORKER_URL='${WORKER_URL}' && cd '${REMOTE_REPO_DIR}' && echo 'Starting ${AGENT_NAME} on ${REMOTE_HOST}...' && ${RUNTIME_CMD} ${RUNTIME_FLAGS}" Enter
+REMOTE_LAUNCH
+
+    # 7. Register agent with central worker
+    AGENT_ID="${AGENT_NAME}@$(ssh "$REMOTE_HOST" hostname -s 2>/dev/null || echo remote)"
+    curl -sf -X POST "${WORKER_URL}/api/agents/register" \
+        -H "Content-Type: application/json" \
+        -d "{\"id\":\"${AGENT_ID}\",\"department\":\"engineering\",\"spawned_by\":\"${AGENT_SPAWNER:-human}\",\"role\":\"${AGENT_ROLE}\"}" >/dev/null 2>&1 && \
+        echo "Agent registered: ${AGENT_ID}" || echo "Warning: Agent registration failed"
+
+    echo ""
+    echo "Remote agent '${AGENT_NAME}' launched on ${REMOTE_HOST}!"
+    echo "  Branch:  ${AGENT_BRANCH}"
+    echo "  Repo:    ${REMOTE_HOST}:${REMOTE_REPO_DIR}"
+    echo "  Attach:  ssh -t ${REMOTE_HOST} tmux attach -t ${TMUX_SESSION}"
+    echo "  Monitor: ssh ${REMOTE_HOST} tmux capture-pane -t ${TMUX_SESSION} -p -S -50"
+    exit 0
+fi
+
 AGENT_DIR="${PROJECT_ROOT}/agentspaces/${AGENT_NAME}"
 CLAUDE_DIR="${AGENT_DIR}/.claude"
 REPO_DIR="${AGENT_DIR}/repo"
 WORKER_URL="http://localhost:37777"
 TMUX_SESSION="agent-${AGENT_NAME}"
-
-# Auto-generate branch name from agent name if not specified
-if [ -z "$AGENT_BRANCH" ]; then
-    AGENT_BRANCH="${AGENT_NAME}/work"
-fi
 
 # --- Bead repo naming (deterministic from git remote URL) ---
 bead_repo_name() {
