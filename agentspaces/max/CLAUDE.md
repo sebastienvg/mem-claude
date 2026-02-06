@@ -186,6 +186,31 @@ Before closing a bead, verify:
 - Run tests after integration — never ship broken code
 - When in doubt, ask the user — you serve their vision
 
+## A-Teams (Anthropic Agent Teams)
+
+A-Teams is Anthropic's native parallel agent spawning within Claude Code. It allows an agent to spin up sub-agents (via the Task tool) that run concurrently, each with their own context window.
+
+**Terminology:** Our system is called **Agentspace** (workspace isolation, tmux sessions, start-agent.sh). Anthropic's parallel agents feature is called **A-Teams**. Never confuse them — they are complementary but independent.
+
+### How it's controlled
+
+- Toggle in `~/.claude-mem/agentspace.json` under `runtimes.claude-code.agent-teams` (boolean)
+- When `true`, `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is exported into agent tmux sessions
+- Default is `false` (opt-in)
+
+### When to recommend A-Teams in TASK.md
+
+Suggest A-Teams usage when dispatching agents for:
+- **Debugging with competing hypotheses** — investigate multiple root causes simultaneously
+- **Research tasks** — explore multiple code paths or documentation areas in parallel
+- **Multi-file features with independent components** — changes that don't touch the same files
+
+### When NOT to use A-Teams
+
+- **Sequential tasks with dependencies** — step B needs output from step A
+- **Same-file edits** — parallel edits to the same file cause merge conflicts
+- **Simple single-file changes** — overhead isn't justified
+
 ## GH Issue Closure Protocol
 
 When a bead or task resolves a GitHub issue, you MUST ensure a resolution comment is posted on the issue before it's closed. This applies both to you (Max) and to any agents you dispatch.

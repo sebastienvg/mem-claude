@@ -18,13 +18,21 @@ shift
 AGENTSPACE_CONFIG="${HOME}/.claude-mem/agentspace.json"
 RUNTIME_CMD="claude"
 RUNTIME_FLAGS="--dangerously-skip-permissions"
+_ATEAMS=""
 if [ -f "$AGENTSPACE_CONFIG" ]; then
     if command -v jq >/dev/null 2>&1; then
         _CMD=$(jq -r '.runtimes["claude-code"].command // empty' "$AGENTSPACE_CONFIG" 2>/dev/null)
         _FLAGS=$(jq -r '.runtimes["claude-code"].flags // empty' "$AGENTSPACE_CONFIG" 2>/dev/null)
         [ -n "$_CMD" ] && RUNTIME_CMD="$_CMD"
         [ -n "$_FLAGS" ] && RUNTIME_FLAGS="$_FLAGS"
+        _ATEAMS=$(jq -r '.runtimes["claude-code"]["agent-teams"] // false' "$AGENTSPACE_CONFIG" 2>/dev/null)
     fi
+fi
+
+# --- Build A-Teams env export ---
+ATEAMS_EXPORT=""
+if [ "$_ATEAMS" = "true" ]; then
+    ATEAMS_EXPORT=" CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1"
 fi
 
 # Parse optional flags
@@ -638,6 +646,25 @@ Human (vision) → Da Vin Cee (plan) → Max (orchestrate) → Agents (execute)
 - Report to Max only — never directly to Da Vin Cee.
 - Only Max dispatches sub-agents.
 
+${_ATEAMS:+
+## A-Teams (Parallel Subtasks)
+
+A-Teams is enabled for your session. You can spawn parallel sub-agents for independent subtasks.
+
+### When to use A-Teams
+- Investigating multiple hypotheses in parallel
+- Research across different code areas
+- Independent file changes that won't conflict
+
+### When NOT to use A-Teams
+- Sequential work with dependencies
+- Edits to the same file (merge conflicts)
+- Simple changes that don't benefit from parallelism
+
+### Usage
+Use the Task tool to spawn sub-agents. Each sub-agent gets its own context.
+Keep your main thread for coordination and integration.
+}
 ## Rules
 
 - **NEVER push to main/master** — always work on your branch
@@ -687,7 +714,7 @@ CLAUDE_MEM_EXPORTS=""
 # Set CLAUDE_CONFIG_DIR in the tmux session and start Claude
 # NOTE: cd to REPO_DIR so Claude works in the agent's own clone.
 tmux send-keys -t "$TMUX_SESSION" \
-    "export CLAUDE_CONFIG_DIR='${CLAUDE_DIR}' AGENT_LIFECYCLE='${AGENT_LIFECYCLE}' AGENT_SPAWNER='${AGENT_NAME}' BEADS_NO_DAEMON=1 BEADS_DIR='${BEAD_REPO_DIR}/.beads' BD_ACTOR='${AGENT_NAME}' ${BEAD_ID:+CURRENT_BEAD='${BEAD_ID}'}${CLAUDE_MEM_EXPORTS} && cd '${REPO_DIR}' && echo 'Starting ${AGENT_NAME} on branch ${AGENT_BRANCH}...' && ${RUNTIME_CMD} ${RUNTIME_FLAGS} ${CLAUDE_RESUME_FLAG}" Enter
+    "export CLAUDE_CONFIG_DIR='${CLAUDE_DIR}' AGENT_LIFECYCLE='${AGENT_LIFECYCLE}' AGENT_SPAWNER='${AGENT_NAME}' BEADS_NO_DAEMON=1 BEADS_DIR='${BEAD_REPO_DIR}/.beads' BD_ACTOR='${AGENT_NAME}' ${BEAD_ID:+CURRENT_BEAD='${BEAD_ID}'}${CLAUDE_MEM_EXPORTS}${ATEAMS_EXPORT} && cd '${REPO_DIR}' && echo 'Starting ${AGENT_NAME} on branch ${AGENT_BRANCH}...' && ${RUNTIME_CMD} ${RUNTIME_FLAGS} ${CLAUDE_RESUME_FLAG}" Enter
 
 echo ""
 echo "Agent '${AGENT_NAME}' launched!"
