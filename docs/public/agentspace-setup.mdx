@@ -1,0 +1,223 @@
+---
+title: "Agentspace Setup"
+description: "Configure and launch autonomous Claude agents with the agentspace orchestration system"
+---
+
+# Agentspace Setup
+
+Agentspace is claude-mem's orchestration system for launching and managing autonomous Claude Code agents. Each agent runs in an isolated workspace (its own git clone, config directory, and tmux session) while sharing memory through the claude-mem worker service.
+
+## Prerequisites
+
+Before setting up an agentspace, ensure the following tools are installed:
+
+| Tool | Purpose | Install |
+|------|---------|---------|
+| **Claude Code CLI** | The AI agent runtime | `npm install -g @anthropic-ai/claude-code` |
+| **tmux** | Session management for agents | `brew install tmux` (macOS) |
+| **jq** | JSON parsing for config files | `brew install jq` (macOS) |
+| **beads (bd)** | Task tracking across agents | `brew install beads` or `npm install -g @beads/bd` |
+| **git** | Version control and workspace isolation | Pre-installed on most systems |
+
+<Warning>
+  Without `jq`, `start-agent.sh` falls back to hardcoded defaults. Install jq for full config support.
+</Warning>
+
+## Beads Init
+
+Beads (`bd`) provides git-backed task tracking shared across all agents. Initialize a bead repository for your project:
+
+```bash
+bd init --prefix <name>
+```
+
+The `--prefix` flag sets a human-readable prefix for bead IDs. Each bead gets a unique ID composed of the prefix plus a 3-8 character hash:
+
+```
+bd-2ud    # prefix "bd", hash "2ud"
+bd-3io    # prefix "bd", hash "3io"
+```
+
+Choose a prefix that identifies your project or team. All agents in the same agentspace share this bead repository for coordinated task tracking.
+
+## Agentspace Config
+
+The agentspace configuration lives at `~/.claude-mem/agentspace.json`. It is auto-created with defaults on first access by the config loader.
+
+### Default Configuration
+
+```json
+{
+  "runtimes": {
+    "claude-code": {
+      "command": "claude",
+      "flags": "--dangerously-skip-permissions",
+      "agent-teams": false
+    }
+  },
+  "remote-hosts": {},
+  "monitors": {}
+}
+```
+
+### Configuration Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `runtimes` | object | Runtime definitions keyed by name |
+| `runtimes.*.command` | string | CLI executable to run (required) |
+| `runtimes.*.flags` | string | Command-line flags passed to the runtime |
+| `runtimes.*.agent-teams` | boolean | Enable Anthropic's native A-Teams (future) |
+| `remote-hosts` | object | Remote host definitions (future) |
+| `monitors` | object | Monitoring configurations (future) |
+
+### Customizing the Runtime
+
+To use a custom Claude binary or change flags:
+
+```json
+{
+  "runtimes": {
+    "claude-code": {
+      "command": "/usr/local/bin/claude",
+      "flags": "--dangerously-skip-permissions --verbose",
+      "agent-teams": false
+    }
+  }
+}
+```
+
+### Schema Validation
+
+The config loader validates that:
+- `runtimes` is an object (not array or primitive)
+- Each runtime entry has a `command` field (string)
+
+Invalid configs produce a `[AGENTSPACE]` warning and fall back to defaults. The agent continues to work — it never crashes on bad config.
+
+## Agent Naming
+
+Agents are identified by the `BD_ACTOR` environment variable, which is set automatically by `start-agent.sh`. The naming convention depends on how the agent is launched:
+
+**With a bead ID:**
+```bash
+./start-agent.sh my-agent --bead bd-2ud --role "TypeScript Developer"
+# Produces agent name: bd-2ud-ts
+# BD_ACTOR=bd-2ud-ts
+```
+
+The role suffix is auto-derived from the role string (e.g., "TypeScript" → `ts`, "Shell" → `shell`, "QA" → `qa`).
+
+**Without a bead ID:**
+```bash
+./start-agent.sh davinci --role "Senior Engineer"
+# BD_ACTOR=davinci
+```
+
+### Agent Registration
+
+Agents auto-register with the worker service on launch:
+
+```bash
+curl -X POST http://localhost:37777/api/agents/register \
+  -H "Content-Type: application/json" \
+  -d '{"id": "bd-2ud-ts@macbook", "department": "engineering"}'
+```
+
+The API key is saved to `.claude/.agent-key` in the agent's config directory. See [Multi-Agent Architecture](/multi-agent) for full details on agent authentication and visibility.
+
+## Worker Setup
+
+The claude-mem worker service handles memory storage and AI processing. Agents connect to it via HTTP.
+
+### Local Worker (Default)
+
+By default, agents connect to `http://localhost:37777`. The worker auto-starts via the SessionStart hook when Claude boots.
+
+### Remote Worker
+
+For multi-machine setups, point agents at a central worker using the `CLAUDE_MEM_WORKER_URL` environment variable:
+
+```bash
+# Set before launching agents
+export CLAUDE_MEM_WORKER_URL="http://192.168.1.100:37777"
+
+# Or pass to start-agent.sh (it forwards CLAUDE_MEM_* vars)
+CLAUDE_MEM_WORKER_URL="http://central:37777" ./start-agent.sh my-agent --role "Developer"
+```
+
+The worker URL can also be set in `~/.claude-mem/settings.json`:
+
+```json
+{
+  "CLAUDE_MEM_WORKER_URL": "http://central-server:37777"
+}
+```
+
+`start-agent.sh` automatically forwards these environment variables into the tmux session:
+- `CLAUDE_MEM_WORKER_URL`
+- `CLAUDE_MEM_WORKER_HOST`
+- `CLAUDE_MEM_WORKER_PORT`
+
+## First Agent
+
+### Launching
+
+```bash
+./agentspaces/start-agent.sh my-agent \
+  --role "TypeScript Developer" \
+  --bead bd-2ud \
+  --task "Implement the config loader"
+```
+
+This command:
+1. Creates `agentspaces/bd-2ud-ts/` workspace directory
+2. Clones the repo into `agentspaces/bd-2ud-ts/repo/`
+3. Creates branch `bd-2ud-ts/bd-2ud` from `origin/main`
+4. Shares auth credentials from the parent Claude session
+5. Registers the agent with the worker service
+6. Starts a tmux session `agent-bd-2ud-ts` with Claude running
+
+### Managing the Session
+
+```bash
+# Attach to the agent's terminal
+tmux attach -t agent-bd-2ud-ts
+
+# Monitor output without attaching
+tmux capture-pane -t agent-bd-2ud-ts -p -S -50
+
+# Kill the agent session
+tmux kill-session -t agent-bd-2ud-ts
+```
+
+### Environment Variables
+
+The following are set in every agent's tmux session:
+
+| Variable | Description |
+|----------|-------------|
+| `CLAUDE_CONFIG_DIR` | Agent-specific Claude config directory |
+| `AGENT_LIFECYCLE` | `perm` or `ephemeral` |
+| `AGENT_SPAWNER` | Name of the agent that launched this one |
+| `BD_ACTOR` | Agent name for bead task attribution |
+| `BEADS_DIR` | Path to shared bead repository |
+| `CURRENT_BEAD` | Active bead ID (if `--bead` was used) |
+
+## Terminology
+
+<Note>
+**Agentspace** and **A-Teams** are distinct concepts:
+
+- **Agentspace** is claude-mem's orchestration system — it manages workspaces, authentication, memory sharing, and task coordination across independent Claude Code processes. Each agent runs as a separate Claude CLI instance in its own tmux session.
+
+- **A-Teams** (Agent Teams) is Anthropic's native multi-agent feature built into Claude Code itself. When enabled, a single Claude session can spawn sub-agents that share its conversation context.
+
+The `agent-teams` flag in `agentspace.json` controls whether Anthropic's A-Teams feature is enabled within each agent launched by the agentspace system. They are complementary — you can use agentspace orchestration with or without A-Teams enabled.
+</Note>
+
+## Next Steps
+
+- [Multi-Agent Architecture](/multi-agent) — Agent authentication and visibility controls
+- [Configuration](/configuration) — Worker service and memory settings
+- [API Reference](/api-reference) — Full HTTP endpoint documentation
